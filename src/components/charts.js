@@ -7,19 +7,21 @@ const Charts = {
   // Render a sparkline SVG path from array of values
   sparkline(values, width, height, color = '#4FC3F7') {
     if (!values || values.length < 2) return '';
+    const svgW = typeof width === 'number' ? width : 300;
     const min = Math.min(...values);
     const max = Math.max(...values);
     const range = max - min || 1;
     const pts = values.map((v, i) => {
-      const x = (i / (values.length - 1)) * width;
+      const x = (i / (values.length - 1)) * svgW;
       const y = height - ((v - min) / range) * (height - 4) - 2;
       return `${x},${y}`;
     });
     const area = `M ${pts[0]} ` + pts.slice(1).map(p => `L ${p}`).join(' ') +
-      ` L ${width},${height} L 0,${height} Z`;
+      ` L ${svgW},${height} L 0,${height} Z`;
     const line = `M ${pts[0]} ` + pts.slice(1).map(p => `L ${p}`).join(' ');
+    const wAttr = typeof width === 'number' ? `width="${width}"` : `width="100%"`;
     return `
-      <svg class="sparkline" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <svg class="sparkline" ${wAttr} height="${height}" viewBox="0 0 ${svgW} ${height}">
         <path d="${area}" fill="${color}" opacity="0.08"/>
         <path d="${line}" stroke="${color}" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
         <circle cx="${pts[pts.length-1].split(',')[0]}" cy="${pts[pts.length-1].split(',')[1]}" r="2.5" fill="${color}"/>
@@ -154,6 +156,41 @@ const Charts = {
         <!-- Direction arrows -->
         <text x="${width - 80}" y="${height - 10}" font-size="9" fill="rgba(79,195,247,0.3)" font-family="Space Mono, monospace">FLOW →</text>
       </svg>
+    `;
+  },
+
+  // Horizontal bar chart comparing one metric across all non-offline sensors
+  metricBars(sensors, metric, label, maxVal, unit, metricKey) {
+    const active = sensors.filter(s => s.status !== 'offline');
+    const W = 400;
+    const barH = 22;
+    const gap = 10;
+    const labelW = 112;
+    const chartW = 200;
+    const totalH = 20 + active.length * (barH + gap);
+
+    const bars = active.map((s, i) => {
+      const val = s[metric];
+      const pct = Math.min(val / maxVal, 1);
+      const bw = pct * chartW;
+      const y = 20 + i * (barH + gap);
+      const color = sensorColor(metricKey, val);
+      const name = s.name.replace('Podul ', '').replace('Parcul ', '').replace('Zona ', '');
+      return `
+        <text x="0" y="${y + 15}" font-size="9" fill="rgba(232,244,253,0.5)" font-family="Space Mono, monospace">${name}</text>
+        <rect x="${labelW}" y="${y}" width="${chartW}" height="${barH}" rx="4" fill="rgba(79,195,247,0.05)"/>
+        <rect x="${labelW}" y="${y}" width="${Math.max(bw, 3)}" height="${barH}" rx="4" fill="${color}" opacity="0.8"/>
+        <text x="${labelW + chartW + 8}" y="${y + 15}" font-size="10" fill="${color}" font-family="Space Mono, monospace">${val}${unit}</text>
+      `;
+    }).join('');
+
+    return `
+      <div class="card">
+        <div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(79,195,247,0.5);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:12px;">${label}</div>
+        <svg width="100%" height="${totalH}" viewBox="0 0 ${W} ${totalH}" style="overflow:visible;">
+          ${bars}
+        </svg>
+      </div>
     `;
   }
 };

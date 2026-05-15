@@ -66,7 +66,7 @@ const MOCK_DATA = {
       year: '1989',
       label: 'Revolution Era',
       icon: '✊',
-      desc: 'Timișoara leads Romania's revolution — the Bega witnesses history.',
+      desc: 'Timișoara leads Romania\'s revolution — the Bega witnesses history.',
       color: '#EF5350',
       facts: ['First free city in Romania', 'Bega as gathering point', '325,000 inhabitants'],
       qr: 'QR-1989-BEGA'

@@ -2,6 +2,104 @@
 // BegaVerse — Page Renderers
 // ===========================
 
+function sensorColor(metric, val) {
+  if (metric === 'ph')          return val > 7    ? '#66BB6A' : val > 6.5  ? '#FFA726' : '#EF5350';
+  if (metric === 'turbidity')   return val < 20   ? '#66BB6A' : val < 40   ? '#FFA726' : '#EF5350';
+  if (metric === 'temperature') return (val >= 10 && val <= 22) ? '#66BB6A' : val <= 26 ? '#FFA726' : '#EF5350';
+  if (metric === 'oxygen')      return val >= 7   ? '#66BB6A' : val >= 5   ? '#FFA726' : '#EF5350';
+  return '#4FC3F7';
+}
+
+function sensorClass(metric, val) {
+  if (metric === 'ph')          return val > 7    ? 'good' : val > 6.5  ? 'warning' : 'danger';
+  if (metric === 'turbidity')   return val < 20   ? 'good' : val < 40   ? 'warning' : 'danger';
+  if (metric === 'temperature') return (val >= 10 && val <= 22) ? 'good' : val <= 26 ? 'warning' : 'danger';
+  if (metric === 'oxygen')      return val >= 7   ? 'good' : val >= 5   ? 'warning' : 'danger';
+  return 'good';
+}
+
+function renderSensorCard(s) {
+  var sId = s.id;
+  var sName = s.name;
+
+  if (s.status === 'offline') {
+    return '<div class="card" id="sensor-' + sId + '">' +
+      '<div class="sdc-header"><div>' +
+      '<div class="hash-cell" style="font-size:0.78rem;margin-bottom:3px;">' + sId + '</div>' +
+      '<div style="font-size:0.98rem;font-weight:500;color:#e8f4fd;margin-bottom:4px;">' + sName + '</div>' +
+      '<div style="font-family:var(--font-mono);font-size:0.65rem;color:rgba(79,195,247,0.35);">' + s.lat + 'N ' + s.lon + 'E</div>' +
+      '</div><div class="badge badge-offline">offline</div></div>' +
+      '<div style="padding:28px 0;text-align:center;">' +
+      '<div style="font-size:2rem;opacity:0.2;margin-bottom:8px;">&#128225;</div>' +
+      '<div style="font-family:var(--font-mono);font-size:0.78rem;color:rgba(232,244,253,0.2);">No data &mdash; sensor offline</div>' +
+      '</div></div>';
+  }
+
+  var phCls   = sensorClass('ph',          s.ph);
+  var turbCls = sensorClass('turbidity',   s.turbidity);
+  var tempCls = sensorClass('temperature', s.temperature);
+  var o2Cls   = sensorClass('oxygen',      s.oxygen);
+
+  var phLbl   = s.ph > 7 ? 'Normal' : s.ph > 6.5 ? 'Acidic' : 'Critical';
+  var turbLbl = s.turbidity < 20 ? 'Clear' : s.turbidity < 40 ? 'Murky' : 'Turbid';
+  var tempLbl = (s.temperature >= 10 && s.temperature <= 22) ? 'Nominal' : s.temperature <= 26 ? 'Warm' : 'Hot';
+  var o2Lbl   = s.oxygen >= 7 ? 'Good' : s.oxygen >= 5 ? 'Low' : 'Critical';
+
+  var phPct   = ((s.ph / 14) * 100).toFixed(1);
+  var turbPct = Math.min(s.turbidity / 80 * 100, 100).toFixed(1);
+  var tempPct = Math.min(s.temperature / 35 * 100, 100).toFixed(1);
+  var o2Pct   = Math.min(s.oxygen / 12 * 100, 100).toFixed(1);
+
+  var badgeCls  = s.status === 'online' ? 'badge-online' : 'badge-warning';
+  var pulseDot  = s.status === 'online' ? '<span class="pulse-dot" style="width:5px;height:5px;flex-shrink:0;"></span>' : '';
+  var sparkHtml = s.history.length ? Charts.sparkline(s.history, 260, 44) : '';
+
+  return '<div class="card" id="sensor-' + sId + '">' +
+    '<div class="sdc-header"><div>' +
+    '<div class="hash-cell" style="font-size:0.78rem;margin-bottom:3px;">' + sId + '</div>' +
+    '<div style="font-size:0.98rem;font-weight:500;color:#e8f4fd;margin-bottom:4px;">' + sName + '</div>' +
+    '<div style="font-family:var(--font-mono);font-size:0.65rem;color:rgba(79,195,247,0.35);">' + s.lat + 'N &middot; ' + s.lon + 'E</div>' +
+    '</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">' +
+    '<div class="badge ' + badgeCls + '" style="display:inline-flex;align-items:center;gap:5px;">' + pulseDot + s.status + '</div>' +
+    '<div style="font-family:var(--font-mono);font-size:0.6rem;color:rgba(79,195,247,0.3);">ESP32 &middot; MQTT</div>' +
+    '</div></div>' +
+    '<div class="sdc-metrics">' +
+      '<div class="sdc-metric-row">' +
+        '<div class="sdc-metric-label">pH</div>' +
+        '<div class="sdc-metric-bar-wrap"><div class="sdc-metric-bar ' + phCls + '" id="bar-' + sId + '-ph" style="width:' + phPct + '%"></div></div>' +
+        '<div class="sdc-metric-value" id="val-' + sId + '-ph">' + s.ph + '</div>' +
+        '<div class="sdc-metric-status ' + phCls + '">' + phLbl + '</div>' +
+      '</div>' +
+      '<div class="sdc-metric-row">' +
+        '<div class="sdc-metric-label">Turbidity</div>' +
+        '<div class="sdc-metric-bar-wrap"><div class="sdc-metric-bar ' + turbCls + '" id="bar-' + sId + '-turbidity" style="width:' + turbPct + '%"></div></div>' +
+        '<div class="sdc-metric-value" id="val-' + sId + '-turbidity">' + s.turbidity + ' NTU</div>' +
+        '<div class="sdc-metric-status ' + turbCls + '">' + turbLbl + '</div>' +
+      '</div>' +
+      '<div class="sdc-metric-row">' +
+        '<div class="sdc-metric-label">Temp</div>' +
+        '<div class="sdc-metric-bar-wrap"><div class="sdc-metric-bar ' + tempCls + '" id="bar-' + sId + '-temperature" style="width:' + tempPct + '%"></div></div>' +
+        '<div class="sdc-metric-value" id="val-' + sId + '-temperature">' + s.temperature + '&#8451;</div>' +
+        '<div class="sdc-metric-status ' + tempCls + '">' + tempLbl + '</div>' +
+      '</div>' +
+      '<div class="sdc-metric-row">' +
+        '<div class="sdc-metric-label">O&#8322;</div>' +
+        '<div class="sdc-metric-bar-wrap"><div class="sdc-metric-bar ' + o2Cls + '" id="bar-' + sId + '-oxygen" style="width:' + o2Pct + '%"></div></div>' +
+        '<div class="sdc-metric-value" id="val-' + sId + '-oxygen">' + s.oxygen + ' mg/L</div>' +
+        '<div class="sdc-metric-status ' + o2Cls + '">' + o2Lbl + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bega-border);">' +
+      '<div style="font-family:var(--font-mono);font-size:0.6rem;color:rgba(79,195,247,0.4);letter-spacing:0.08em;margin-bottom:8px;">pH TREND &middot; LAST 12 READINGS</div>' +
+      sparkHtml +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid rgba(79,195,247,0.08);">' +
+      '<div style="font-family:var(--font-mono);font-size:0.6rem;color:rgba(79,195,247,0.35);">&#9679; Updated 2 min ago</div>' +
+      '<div style="font-family:var(--font-mono);font-size:0.6rem;color:rgba(79,195,247,0.25);">10 min interval</div>' +
+    '</div>' +
+  '</div>';
+}
+
 const Pages = {
 
   // ——— OVERVIEW DASHBOARD ———
@@ -448,70 +546,146 @@ const Pages = {
     </div>`;
   },
 
-  // ——— IOT SENSORS ———
+  // ——— IOT SENSORS DASHBOARD ———
   sensors() {
+    var sensors = MOCK_DATA.sensors;
+    var online  = 0, warning = 0, offline = 0, phSum = 0, o2Sum = 0, activeCount = 0;
+    for (var i = 0; i < sensors.length; i++) {
+      var s = sensors[i];
+      if (s.status === 'online')  online++;
+      if (s.status === 'warning') warning++;
+      if (s.status === 'offline') offline++;
+      if (s.status !== 'offline') { phSum += s.ph; o2Sum += s.oxygen; activeCount++; }
+    }
+    var avgPh  = activeCount ? (phSum  / activeCount).toFixed(1) : '7.0';
+    var avgO2  = activeCount ? (o2Sum  / activeCount).toFixed(1) : '8.0';
+    var phTrend  = parseFloat(avgPh) >= 7 ? 'Slightly alkaline' : parseFloat(avgPh) >= 6.5 ? 'Slightly acidic' : 'Acidic';
+    var o2Trend  = parseFloat(avgO2) >= 7 ? 'Good for aquatic life' : 'Below optimal';
+    var phTrendCls = parseFloat(avgPh) >= 6.5 ? 'up' : 'down';
+    var o2TrendCls = parseFloat(avgO2) >= 7 ? 'up' : 'down';
+    var warnColor  = warning > 0 ? 'var(--bega-amber)' : 'rgba(232,244,253,0.35)';
+    var warnTrend  = warning > 0 ? 'down' : 'neutral';
+
+    // Pre-build sensor cards
+    var cardsHtml = '';
+    for (var i = 0; i < sensors.length; i++) {
+      cardsHtml += renderSensorCard(sensors[i]);
+    }
+
+    // Pre-build comparison charts
+    var phChart   = Charts.metricBars(sensors, 'ph',          'pH Level',            14, '',        'ph');
+    var turbChart = Charts.metricBars(sensors, 'turbidity',   'Turbidity (NTU)',     80, ' NTU',    'turbidity');
+    var tempChart = Charts.metricBars(sensors, 'temperature', 'Temperature (C)',     35, 'C',       'temperature');
+    var o2Chart   = Charts.metricBars(sensors, 'oxygen',      'Dissolved O2 (mg/L)', 12, ' mg/L',  'oxygen');
+
+    // Pre-build table rows
+    var rowsHtml = '';
+    for (var i = 0; i < sensors.length; i++) {
+      var s = sensors[i];
+      var sc = s.status === 'online' ? 'badge-online' : s.status === 'warning' ? 'badge-warning' : 'badge-offline';
+      var phC  = s.ph        ? sensorColor('ph',          s.ph)        : 'inherit';
+      var tbC  = s.turbidity ? sensorColor('turbidity',   s.turbidity) : 'inherit';
+      var o2C  = s.oxygen    ? sensorColor('oxygen',      s.oxygen)    : 'inherit';
+      var trnd = s.history.length ? Charts.sparkline(s.history, 80, 28) : '&mdash;';
+      rowsHtml += '<tr onclick="document.getElementById(\'sensor-' + s.id + '\').scrollIntoView({behavior:\'smooth\',block:\'center\'})" style="cursor:pointer;">' +
+        '<td class="hash-cell">' + s.id + '</td>' +
+        '<td style="font-weight:500;color:#e8f4fd;">' + s.name + '</td>' +
+        '<td><div class="badge ' + sc + '">' + s.status + '</div></td>' +
+        '<td style="font-family:var(--font-mono);color:' + phC  + ';">' + (s.ph        || '&mdash;') + '</td>' +
+        '<td style="font-family:var(--font-mono);color:' + tbC  + ';">' + (s.turbidity ? s.turbidity + ' NTU' : '&mdash;') + '</td>' +
+        '<td style="font-family:var(--font-mono);">'                     + (s.temperature ? s.temperature + '&#8451;' : '&mdash;') + '</td>' +
+        '<td style="font-family:var(--font-mono);color:' + o2C  + ';">' + (s.oxygen    ? s.oxygen    + ' mg/L' : '&mdash;') + '</td>' +
+        '<td style="font-family:var(--font-mono);font-size:0.68rem;color:rgba(79,195,247,0.4);">' + s.lat + 'N ' + s.lon + 'E</td>' +
+        '<td>' + trnd + '</td>' +
+        '</tr>';
+    }
+
+    var mapHtml  = Charts.canalMap(sensors);
+    var sparkBar = Charts.sparkline([3,3,4,3,4,4,4,4,4,4,4,online], 120, 32, '#66BB6A');
+
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · IOT</div>
-        <h1 class="page-title">Sensor Network</h1>
-        <p class="page-subtitle">50 sensors planned · 4 active in MVP · ESP32 + MQTT + PostgreSQL</p>
+        <div class="page-breadcrumb">BEGAVERSE · IOT SENSORS</div>
+        <h1 class="page-title">Sensor<br><em>Dashboard</em></h1>
+        <p class="page-subtitle">Real-time readings from ${sensors.length} ESP32 nodes along the Bega Canal &middot; Updates every 10 min via MQTT</p>
       </div>
 
       <div class="grid-4" style="margin-bottom:24px;">
-        <div class="card">
+        <div class="card card-glow-green">
           <div class="card-label">Online</div>
-          <div class="card-value" style="color:var(--bega-green);">4</div>
+          <div class="card-value" style="color:var(--bega-green);">${online}</div>
+          <div class="card-trend neutral">of ${sensors.length} sensors</div>
+          ${sparkBar}
         </div>
         <div class="card">
-          <div class="card-label">Warning</div>
-          <div class="card-value" style="color:var(--bega-amber);">1</div>
+          <div class="card-label">Warning / Offline</div>
+          <div class="card-value" style="color:${warnColor};">${warning + offline}</div>
+          <div class="card-trend ${warnTrend}">${warning} warning &middot; ${offline} offline</div>
         </div>
-        <div class="card">
-          <div class="card-label">Offline</div>
-          <div class="card-value" style="color:var(--bega-coral);">1</div>
+        <div class="card card-glow-cyan">
+          <div class="card-label">Avg pH</div>
+          <div class="card-value">${avgPh}</div>
+          <div class="card-trend ${phTrendCls}">${phTrend}</div>
         </div>
-        <div class="card">
-          <div class="card-label">Planned</div>
-          <div class="card-value" style="color:rgba(232,244,253,0.4);">44</div>
+        <div class="card card-glow-cyan">
+          <div class="card-label">Avg Dissolved O&#8322;</div>
+          <div class="card-value">${avgO2}<span class="card-unit">mg/L</span></div>
+          <div class="card-trend ${o2TrendCls}">${o2Trend}</div>
         </div>
       </div>
 
-      <div class="section-title">All Sensors</div>
-      <div class="card" style="padding:0;overflow:hidden;">
+      <div class="section-title">Sensor Network Map</div>
+      <div class="card" style="padding:0;margin-bottom:24px;overflow:hidden;">
+        ${mapHtml}
+        <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--bega-border);flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <div class="map-badge"><span style="color:#66BB6A;">&#9679;</span> ${online} online</div>
+            <div class="map-badge"><span style="color:#FFA726;">&#9679;</span> ${warning} warning</div>
+            <div class="map-badge"><span style="color:#EF5350;">&#9679;</span> ${offline} offline</div>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:0.65rem;color:rgba(79,195,247,0.45);display:flex;align-items:center;gap:6px;">
+            <span class="pulse-dot" style="width:5px;height:5px;"></span>
+            <span id="last-updated-ts">Live feed active</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section-title">Live Readings &mdash; All Sensors</div>
+      <div class="grid-2" id="sensor-cards-grid" style="margin-bottom:28px;">
+        ${cardsHtml}
+      </div>
+
+      <div class="section-title">Cross-Sensor Comparison</div>
+      <div class="grid-2" style="margin-bottom:28px;">
+        ${phChart}
+        ${turbChart}
+        ${tempChart}
+        ${o2Chart}
+      </div>
+
+      <div class="section-title">Raw Data Table</div>
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px;">
         <table class="data-table">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Location</th>
-              <th>Status</th>
-              <th>pH</th>
-              <th>Turbidity</th>
-              <th>Temp</th>
-              <th>O₂</th>
-              <th>Trend</th>
+              <th>Sensor</th><th>Location</th><th>Status</th>
+              <th>pH</th><th>Turbidity</th><th>Temp</th><th>O&#8322;</th>
+              <th>Coordinates</th><th>Trend</th>
             </tr>
           </thead>
-          <tbody>
-            ${MOCK_DATA.sensors.map(s => `
-              <tr>
-                <td class="hash-cell">${s.id}</td>
-                <td>${s.name}</td>
-                <td><div class="badge ${s.status === 'online' ? 'badge-online' : s.status === 'warning' ? 'badge-warning' : 'badge-offline'}">${s.status}</div></td>
-                <td>${s.ph || '—'}</td>
-                <td>${s.turbidity ? s.turbidity + ' NTU' : '—'}</td>
-                <td>${s.temperature ? s.temperature + '°C' : '—'}</td>
-                <td>${s.oxygen ? s.oxygen + ' mg/L' : '—'}</td>
-                <td>${s.history.length ? Charts.sparkline(s.history, 80, 28) : '—'}</td>
-              </tr>
-            `).join('')}
-          </tbody>
+          <tbody>${rowsHtml}</tbody>
         </table>
       </div>
 
-      <div class="alert alert-info" style="margin-top:16px;">
-        <div class="alert-icon">📡</div>
-        <div>Sensors publish via <strong>MQTT</strong> every 10 minutes → Node.js backend → PostgreSQL + PostGIS. Data then committed to Ethereum (Sepolia testnet) for transparency.</div>
+      <div class="alert alert-info">
+        <div class="alert-icon">&#128225;</div>
+        <div style="line-height:1.6;">
+          Sensors publish every <strong>10 minutes</strong> via <strong>MQTT</strong> &rarr; Node.js backend &rarr; PostgreSQL + PostGIS.
+          Critical readings committed to <strong>Ethereum Sepolia</strong> testnet for public auditability.
+          <span style="opacity:0.6;"> &middot; 50 sensors planned &middot; 4 active in MVP</span><br>
+          <a href="#" onclick="navigate('blockchain');return false;" style="color:var(--bega-cyan);text-decoration:none;font-size:0.9em;">View on-chain log &rarr;</a>
+        </div>
       </div>
     </div>`;
   },

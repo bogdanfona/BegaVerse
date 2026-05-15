@@ -1027,3 +1027,81 @@ body::before {
 }
 
 .sidebar-overlay.active { display: block; }
+
+/* ========================
+   SENSOR DETAIL CARDS
+   ======================== */
+
+.sdc-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--bega-border);
+}
+
+.sdc-metrics {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sdc-metric-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 68px 52px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sdc-metric-label {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: rgba(232, 244, 253, 0.55);
+  white-space: nowrap;
+}
+
+.sdc-metric-bar-wrap {
+  height: 8px;
+  background: rgba(79, 195, 247, 0.08);
+  border-radius: 4px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.sdc-metric-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.8s ease, background 0.4s ease;
+}
+
+.sdc-metric-bar.good    { background: linear-gradient(90deg, #66BB6A, #81c784); }
+.sdc-metric-bar.warning { background: linear-gradient(90deg, #FFA726, #ffb74d); }
+.sdc-metric-bar.danger  { background: linear-gradient(90deg, #EF5350, #ef9a9a); }
+
+.sdc-metric-value {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: #e8f4fd;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.sdc-metric-status {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.sdc-metric-status.good    { color: var(--bega-green); background: rgba(102, 187, 106, 0.12); }
+.sdc-metric-status.warning { color: var(--bega-amber); background: rgba(255, 167, 38, 0.12); }
+.sdc-metric-status.danger  { color: var(--bega-coral); background: rgba(239, 83, 80, 0.12); }
+
+@media (max-width: 480px) {
+  .sdc-metric-row { grid-template-columns: 72px 1fr 60px 44px; gap: 6px; }
+  .sdc-metric-status { font-size: 0.56rem; padding: 2px 4px; }
+}

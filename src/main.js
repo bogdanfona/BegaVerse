@@ -6,27 +6,82 @@ let currentPage = 'dashboard';
 let currentTool = 'select';
 let simGridData = {};
 let simStats = { trees: 0, objects: 0 };
+let liveDataInterval = null;
+let liveSecondsElapsed = 0;
 
 // ——— NAVIGATION ———
 
 function navigate(page) {
+  stopLiveSensorSim();
   currentPage = page;
   const main = document.getElementById('main-content');
 
-  // Update nav active state
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
   });
 
-  // Render page
-  main.innerHTML = Pages[page] ? Pages[page]() : '<p>Page not found</p>';
+  try {
+    main.innerHTML = Pages[page] ? Pages[page]() : '<p>Page not found</p>';
+  } catch (err) {
+    main.innerHTML = '<div style="padding:32px"><div class="card" style="border-color:#EF535040"><div style="font-family:var(--font-mono);font-size:0.7rem;color:#EF5350;margin-bottom:8px;">RENDER ERROR — ' + page + '</div><pre style="color:rgba(232,244,253,0.6);font-size:0.72rem;white-space:pre-wrap;word-break:break-all;">' + err.stack + '</pre></div></div>';
+    console.error('Page render error:', err);
+  }
 
-  // Post-render hooks
   if (page === 'simcity') initSimGrid();
   if (page === 'history') attachEraListeners();
+  if (page === 'sensors') startLiveSensorSim();
 
-  // Close sidebar on mobile
   closeSidebar();
+}
+
+// ——— LIVE SENSOR SIMULATION ———
+
+function startLiveSensorSim() {
+  liveSecondsElapsed = 0;
+  liveDataInterval = setInterval(() => {
+    if (currentPage !== 'sensors') { stopLiveSensorSim(); return; }
+    liveSecondsElapsed += 15;
+
+    const tsEl = document.getElementById('last-updated-ts');
+    if (tsEl) {
+      tsEl.textContent = liveSecondsElapsed < 60
+        ? `Live · ${liveSecondsElapsed}s ago`
+        : `Live · ${Math.floor(liveSecondsElapsed / 60)}m ${liveSecondsElapsed % 60}s ago`;
+    }
+
+    MOCK_DATA.sensors.forEach(s => {
+      if (s.status === 'offline') return;
+      s.ph          = Math.max(6.0, Math.min(9.0, +((s.ph          + (Math.random() - 0.5) * 0.1 ).toFixed(1))));
+      s.turbidity   = Math.max(1,   Math.round(s.turbidity   + (Math.random() - 0.5) * 2));
+      s.temperature = Math.max(10,  Math.min(30, +((s.temperature + (Math.random() - 0.5) * 0.2 ).toFixed(1))));
+      s.oxygen      = Math.max(4,   Math.min(12, +((s.oxygen      + (Math.random() - 0.5) * 0.1 ).toFixed(1))));
+      if (s.history.length >= 12) s.history.shift();
+      s.history.push(s.ph);
+    });
+
+    updateSensorDOMValues();
+  }, 15000);
+}
+
+function stopLiveSensorSim() {
+  if (liveDataInterval) { clearInterval(liveDataInterval); liveDataInterval = null; }
+}
+
+function setMetricDOM(sensorId, metric, displayVal, cls, pct) {
+  const valEl = document.getElementById(`val-${sensorId}-${metric}`);
+  const barEl = document.getElementById(`bar-${sensorId}-${metric}`);
+  if (valEl) valEl.textContent = displayVal;
+  if (barEl) { barEl.className = `sdc-metric-bar ${cls}`; barEl.style.width = pct + '%'; }
+}
+
+function updateSensorDOMValues() {
+  MOCK_DATA.sensors.forEach(s => {
+    if (s.status === 'offline') return;
+    setMetricDOM(s.id, 'ph',          String(s.ph),          s.ph > 7 ? 'good' : s.ph > 6.5 ? 'warning' : 'danger',                              (s.ph / 14 * 100).toFixed(1));
+    setMetricDOM(s.id, 'turbidity',   s.turbidity + ' NTU',  s.turbidity < 20 ? 'good' : s.turbidity < 40 ? 'warning' : 'danger',               Math.min(s.turbidity / 80 * 100, 100).toFixed(1));
+    setMetricDOM(s.id, 'temperature', s.temperature + '°C',  (s.temperature >= 10 && s.temperature <= 22) ? 'good' : s.temperature <= 26 ? 'warning' : 'danger', Math.min(s.temperature / 35 * 100, 100).toFixed(1));
+    setMetricDOM(s.id, 'oxygen',      s.oxygen + ' mg/L',    s.oxygen >= 7 ? 'good' : s.oxygen >= 5 ? 'warning' : 'danger',                     Math.min(s.oxygen / 12 * 100, 100).toFixed(1));
+  });
 }
 
 // ——— MOBILE SIDEBAR ———
@@ -223,17 +278,24 @@ function updateSimStats() {
 // ——— INIT ———
 
 document.addEventListener('DOMContentLoaded', () => {
+  window.onerror = (msg, src, line, col, err) => {
+    const main = document.getElementById('main-content');
+    if (main && !main.innerHTML.trim()) {
+      main.innerHTML = '<div style="padding:32px"><div class="card" style="border-color:#EF535040"><div style="font-family:var(--font-mono);font-size:0.7rem;color:#EF5350;margin-bottom:8px;">GLOBAL JS ERROR</div><pre style="color:rgba(232,244,253,0.6);font-size:0.72rem;white-space:pre-wrap;">' + msg + '\n' + src + ':' + line + ':' + col + '</pre></div></div>';
+    }
+    console.error('Global error:', msg, src, line, col, err);
+  };
+
   // Create sidebar overlay for mobile
   const overlay = document.createElement('div');
   overlay.className = 'sidebar-overlay';
   overlay.onclick = closeSidebar;
   document.body.appendChild(overlay);
 
-  // Initial page render
-  navigate('dashboard');
+  // Block default href="#" scroll on nav links so navigate() runs cleanly
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', e => e.preventDefault());
+  });
 
-  // Live clock for footer — subtle updates
-  setInterval(() => {
-    // Simulate live sensor tick
-  }, 10000);
+  navigate('dashboard');
 });
