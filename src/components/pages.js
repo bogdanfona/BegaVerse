@@ -379,81 +379,103 @@ const Pages = {
 
   // ——— SIMCITY / LAND & BUILD ———
   simcity() {
+    const btnStyle = 'background:rgba(3,12,24,0.88);backdrop-filter:blur(8px);border:1px solid rgba(36,118,181,0.45);color:rgba(79,195,247,0.9);font-family:var(--font-mono);font-size:0.68rem;cursor:pointer;border-radius:3px;letter-spacing:0.06em;user-select:none;-webkit-user-select:none;';
     return `
     <div class="page-enter">
       <div class="page-header">
         <div class="page-breadcrumb">BV-01 · OPERATIONS ZONE</div>
         <h1 class="page-title">Riverbank<br><em>Ops</em></h1>
-        <p class="page-subtitle">Acquire parcels, deploy assets — all linked to real-world coordinates on the Bega</p>
+        <p class="page-subtitle">Walk the Bega canal in 3D — click bank zones to acquire parcels linked to real coordinates</p>
       </div>
 
-      <div class="grid-2-3">
-        <!-- Sim Grid -->
-        <div class="card">
-          <div class="card-title"><span class="dot" style="background:#66BB6A"></span>Interactive Map Grid</div>
+      <!-- 3D Walkthrough -->
+      <div class="card" style="padding:0;overflow:hidden;margin-bottom:24px;">
+        <div id="bega-3d-container" style="position:relative;width:100%;height:560px;background:#0a1828;">
+          <canvas id="bega-3d-canvas" style="width:100%;height:100%;display:block;cursor:crosshair;"></canvas>
 
-          <div class="sim-toolbar" id="sim-toolbar">
-            <button class="sim-tool active" data-tool="select" onclick="selectTool('select')">👆 Select</button>
-            <button class="sim-tool" data-tool="tree" onclick="selectTool('tree')">🌳 Tree</button>
-            <button class="sim-tool" data-tool="bench" onclick="selectTool('bench')">🪑 Bench</button>
-            <button class="sim-tool" data-tool="flower" onclick="selectTool('flower')">🌸 Flowers</button>
-            <button class="sim-tool" data-tool="lamp" onclick="selectTool('lamp')">💡 Lamp</button>
-            <button class="sim-tool" data-tool="erase" onclick="selectTool('erase')">🗑️ Erase</button>
+          <!-- SHOP PANEL left overlay -->
+          <div style="position:absolute;top:12px;left:12px;z-index:15;display:flex;flex-direction:column;gap:6px;">
+            <div style="background:rgba(3,12,24,0.92);backdrop-filter:blur(10px);border:1px solid rgba(36,118,181,0.5);border-radius:3px;padding:8px 12px;min-width:148px;">
+              <div style="font-family:var(--font-mono);font-size:0.55rem;color:rgba(79,195,247,0.5);letter-spacing:0.1em;margin-bottom:3px;">BUDGET</div>
+              <div id="shop-budget" style="font-family:var(--font-mono);font-size:1.1rem;color:#C8A020;">€5,000</div>
+            </div>
+            <div style="background:rgba(3,12,24,0.92);backdrop-filter:blur(10px);border:1px solid rgba(36,118,181,0.4);border-radius:3px;padding:10px 12px;display:flex;flex-direction:column;gap:5px;">
+              <div style="font-family:var(--font-mono);font-size:0.55rem;color:rgba(79,195,247,0.5);letter-spacing:0.1em;margin-bottom:3px;">PLACE ON BANK</div>
+              ${[
+                ['tree',    '🌳','Tree',       '€500' ],
+                ['bench',   '🪑','Bench',      '€200' ],
+                ['flowers', '🌸','Flower Bed', '€150' ],
+                ['lamp',    '💡','Lamp Post',  '€300' ],
+                ['fountain','⛲','Fountain',   '€800' ],
+              ].map(([id,icon,label,price]) => `
+                <button id="shop-btn-${id}" onclick="selectShopItem('${id}')"
+                  style="${btnStyle}display:flex;align-items:center;gap:7px;padding:6px 10px;width:100%;text-align:left;transition:all 0.15s;">
+                  <span style="font-size:1rem;">${icon}</span>
+                  <span style="flex:1;">${label}</span>
+                  <span style="color:rgba(200,160,32,0.85);font-size:0.62rem;">${price}</span>
+                </button>
+              `).join('')}
+            </div>
+            <div style="background:rgba(3,12,24,0.88);backdrop-filter:blur(8px);border:1px solid rgba(36,118,181,0.3);border-radius:3px;padding:6px 12px;">
+              <div style="font-family:var(--font-mono);font-size:0.55rem;color:rgba(79,195,247,0.4);letter-spacing:0.1em;margin-bottom:2px;">PLACED</div>
+              <div id="shop-placed" style="font-family:var(--font-mono);font-size:0.9rem;color:#5B8A35;">0 items</div>
+            </div>
           </div>
 
-          <div id="sim-grid-wrap" style="overflow-x:auto;">
-            <!-- Grid rendered by JS -->
+          <!-- Placement hint (shows when item selected) -->
+          <div id="place-hint" style="display:none;position:absolute;bottom:74px;left:50%;transform:translateX(-50%);background:rgba(36,118,181,0.88);border-radius:3px;padding:5px 16px;font-family:var(--font-mono);font-size:0.62rem;color:#fff;white-space:nowrap;pointer-events:none;letter-spacing:0.05em;"></div>
+
+          <!-- coords HUD top-right -->
+          <div style="position:absolute;top:12px;right:12px;background:rgba(3,12,24,0.88);backdrop-filter:blur(8px);border:1px solid rgba(36,118,181,0.35);border-radius:3px;padding:6px 12px;font-family:var(--font-mono);font-size:0.62rem;color:rgba(79,195,247,0.85);letter-spacing:0.05em;pointer-events:none;">
+            <span id="bega3d-coords">LAT 45.7530° · LON 21.2160°</span>
           </div>
 
-          <div id="sim-status" style="margin-top:10px;font-family:var(--font-mono);font-size:0.75rem;color:rgba(79,195,247,0.6);min-height:20px;"></div>
+          <!-- nav controls bottom-center -->
+          <div style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;gap:6px;align-items:center;">
+            <button onmousedown="bega3dStartMove('left')" onmouseup="bega3dStopMove()" onmouseleave="bega3dStopMove()" style="${btnStyle}padding:9px 13px;">◀</button>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+              <button onmousedown="bega3dStartMove('forward')" onmouseup="bega3dStopMove()" onmouseleave="bega3dStopMove()" style="${btnStyle}padding:8px 22px;">▲ FWD</button>
+              <button onmousedown="bega3dStartMove('backward')" onmouseup="bega3dStopMove()" onmouseleave="bega3dStopMove()" style="${btnStyle}padding:8px 22px;">▼ BWD</button>
+            </div>
+            <button onmousedown="bega3dStartMove('right')" onmouseup="bega3dStopMove()" onmouseleave="bega3dStopMove()" style="${btnStyle}padding:9px 13px;">▶</button>
+          </div>
+
+          <!-- default nav hint -->
+          <div style="position:absolute;bottom:74px;left:50%;transform:translateX(-50%);background:rgba(3,12,24,0.72);border:1px solid rgba(36,118,181,0.2);border-radius:3px;padding:4px 14px;font-family:var(--font-mono);font-size:0.58rem;color:rgba(79,195,247,0.4);white-space:nowrap;pointer-events:none;letter-spacing:0.08em;">
+            ARROW KEYS / HOLD BUTTONS · SELECT ITEM THEN CLICK BANK TO PLACE
+          </div>
         </div>
+      </div>
 
-        <!-- Sidebar -->
-        <div style="display:flex;flex-direction:column;gap:16px;">
-          <!-- Stats -->
+      <!-- Stats row -->
+      <div class="grid-4" style="margin-bottom:24px;">
+        ${[
+          ['Budget Remaining', '€<span id="stat-budget">5,000</span>', '#C8A020'],
+          ['Items Placed',     '<span id="stat-placed">0</span>',       '#5B8A35'],
+          ['Green Score',      '<span id="stat-green">0</span> pts',    'var(--bega-cyan)'],
+          ['CO₂ Saved',        '<span id="stat-co2-3d">0</span> kg/yr', '#5B8A35'],
+        ].map(([label, val, color]) => `
           <div class="card">
-            <div class="card-title"><span class="dot" style="background:var(--bega-gold)"></span>My Plot Stats</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-              <div style="background:rgba(79,195,247,0.05);border-radius:8px;padding:12px;border:1px solid var(--bega-border);">
-                <div class="card-label" style="font-size:0.62rem;">Trees</div>
-                <div style="font-size:1.5rem;font-family:var(--font-mono);color:#e8f4fd;" id="stat-trees">0</div>
-              </div>
-              <div style="background:rgba(79,195,247,0.05);border-radius:8px;padding:12px;border:1px solid var(--bega-border);">
-                <div class="card-label" style="font-size:0.62rem;">Objects</div>
-                <div style="font-size:1.5rem;font-family:var(--font-mono);color:#e8f4fd;" id="stat-objects">0</div>
-              </div>
-              <div style="background:rgba(79,195,247,0.05);border-radius:8px;padding:12px;border:1px solid var(--bega-border);">
-                <div class="card-label" style="font-size:0.62rem;">CO₂ Saved</div>
-                <div style="font-size:1.2rem;font-family:var(--font-mono);color:var(--bega-green);" id="stat-co2">0 kg</div>
-              </div>
-              <div style="background:rgba(79,195,247,0.05);border-radius:8px;padding:12px;border:1px solid var(--bega-border);">
-                <div class="card-label" style="font-size:0.62rem;">Green Score</div>
-                <div style="font-size:1.2rem;font-family:var(--font-mono);color:var(--bega-cyan);" id="stat-score">0</div>
-              </div>
-            </div>
+            <div class="card-label" style="font-size:0.6rem;">${label}</div>
+            <div style="font-size:1.3rem;font-family:var(--font-mono);color:${color};">${val}</div>
           </div>
+        `).join('')}
+      </div>
 
-          <!-- Available parcels -->
-          <div class="card">
-            <div class="card-title"><span class="dot"></span>Available Parcels</div>
-            ${MOCK_DATA.parcels.map(p => `
-              <div style="padding:10px 0;border-bottom:1px solid var(--bega-border);display:flex;justify-content:space-between;align-items:center;">
-                <div>
-                  <div style="font-size:0.85rem;font-weight:500;color:#e8f4fd;">${p.name}</div>
-                  <div style="font-size:0.72rem;color:rgba(232,244,253,0.4);font-family:var(--font-mono);">${p.size}</div>
-                </div>
-                <div style="text-align:right;">
-                  <div style="font-family:var(--font-mono);font-size:0.8rem;color:var(--bega-gold);">${p.price}</div>
-                  <div class="badge ${p.status === 'available' ? 'badge-online' : p.status === 'owned' ? 'badge-warning' : 'badge-offline'}" style="font-size:0.6rem;margin-top:3px;">${p.status}</div>
-                </div>
-              </div>
-            `).join('')}
-            <div style="margin-top:12px;">
-              <div class="alert alert-info" style="font-size:0.78rem;">
-                <div>🔗 Parcel ownership will be stored on Ethereum blockchain when DB is connected.</div>
-              </div>
+      <!-- Landmarks legend -->
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>Bega Canal · Timișoara — Key Landmarks</div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap;">
+          ${[
+            ['Podul Mihai Viteazul','21.197°E'],['Podul Dacilor','21.204°E'],
+            ['Podul Decebal','21.211°E'],['Podul Michelangelo','21.219°E'],
+            ['Podul Eroilor','21.225°E'],['Podul Muncii','21.238°E'],
+          ].map(([name,pos]) => `
+            <div style="font-family:var(--font-mono);font-size:0.72rem;color:rgba(232,244,253,0.6);">
+              <span style="color:rgba(79,195,247,0.5);">▪ </span>${name}
+              <span style="color:rgba(79,195,247,0.35);font-size:0.6rem;"> · ${pos}</span>
             </div>
-          </div>
+          `).join('')}
         </div>
       </div>
     </div>`;
