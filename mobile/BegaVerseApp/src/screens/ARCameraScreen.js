@@ -10,18 +10,24 @@ export default function ARCameraScreen({ navigation }) {
   const handleBarCodeScanned = ({ type, data }) => {
     setScanned(true);
     
-    // Mock AR content based on QR data
+    // Show preview alert
     Alert.alert(
       '🌊 AR Content Unlocked!',
-      `Location: ${data}\n\nHistorical Photo: Bega River 1900\nFun Fact: This bridge was built in 1901!`,
+      `Location: ${data}\n\nTap "View More" to see full AR experience!`,
       [
         {
           text: 'View More',
-          onPress: () => console.log('View more pressed')
+          onPress: () => {
+            // Navigate to AR Content screen
+            navigation.navigate('ARContent', { qrData: data });
+            // Reset scanned state when coming back
+            setTimeout(() => setScanned(false), 500);
+          }
         },
         {
           text: 'Scan Again',
-          onPress: () => setScanned(false)
+          onPress: () => setScanned(false),
+          style: 'cancel'
         }
       ]
     );
@@ -63,6 +69,7 @@ export default function ARCameraScreen({ navigation }) {
   // Camera view with permission granted
   return (
     <View style={styles.container}>
+      {/* Camera (no children!) */}
       <CameraView
         style={styles.camera}
         facing="back"
@@ -70,55 +77,53 @@ export default function ARCameraScreen({ navigation }) {
         barcodeScannerSettings={{
           barcodeTypes: ['qr'],
         }}
-      >
-        {/* Scanning overlay */}
-        <View style={styles.overlay}>
-          <View style={styles.topOverlay} />
-          
-          <View style={styles.middleRow}>
-            <View style={styles.sideOverlay} />
-            <View style={styles.scanArea}>
-              <View style={[styles.corner, styles.topLeft]} />
-              <View style={[styles.corner, styles.topRight]} />
-              <View style={[styles.corner, styles.bottomLeft]} />
-              <View style={[styles.corner, styles.bottomRight]} />
-              
-              {!scanned && (
-                <Text style={styles.scanText}>
-                  Point at QR code
-                </Text>
-              )}
-            </View>
-            <View style={styles.sideOverlay} />
-          </View>
-          
-          <View style={styles.bottomOverlay}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Text style={styles.backButtonText}>← Back</Text>
-            </TouchableOpacity>
+      />
+
+      {/* Overlay (absolute positioned OUTSIDE camera) */}
+      <View style={styles.overlay} pointerEvents="box-none">
+        <View style={styles.topOverlay} />
+        
+        <View style={styles.middleRow}>
+          <View style={styles.sideOverlay} />
+          <View style={styles.scanArea}>
+            <View style={[styles.corner, styles.topLeft]} />
+            <View style={[styles.corner, styles.topRight]} />
+            <View style={[styles.corner, styles.bottomLeft]} />
+            <View style={[styles.corner, styles.bottomRight]} />
             
-            {scanned && (
-              <TouchableOpacity 
-                style={styles.scanAgainButton}
-                onPress={() => setScanned(false)}
-              >
-                <Text style={styles.scanAgainText}>Tap to Scan Again</Text>
-              </TouchableOpacity>
+            {!scanned && (
+              <Text style={styles.scanText}>Point at QR code</Text>
             )}
           </View>
+          <View style={styles.sideOverlay} />
         </View>
-      </CameraView>
+        
+        <View style={styles.bottomOverlay}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backButtonText}>← Back</Text>
+          </TouchableOpacity>
+          
+          {scanned && (
+            <TouchableOpacity 
+              style={styles.scanAgainButton}
+              onPress={() => setScanned(false)}
+            >
+              <Text style={styles.scanAgainText}>Tap to Scan Again</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
 
-      {/* Instructions */}
+      {/* Instructions (absolute positioned) */}
       <View style={styles.instructions}>
         <Text style={styles.instructionTitle}>💡 How to use:</Text>
         <Text style={styles.instructionText}>
-          1. Point camera at QR code on Bega{'\n'}
+          1. Point camera at QR code{'\n'}
           2. Wait for automatic scan{'\n'}
-          3. View AR content!
+          3. Tap "View More" for AR content!
         </Text>
       </View>
     </View>
@@ -134,7 +139,11 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   topOverlay: {
     flex: 1,

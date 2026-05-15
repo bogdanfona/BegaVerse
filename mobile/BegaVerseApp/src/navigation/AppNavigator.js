@@ -1,14 +1,15 @@
 import React from 'react';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 
 // Import screens
 import HomeScreen from '../screens/HomeScreen';
 import ARCameraScreen from '../screens/ARCameraScreen';
 import QuestsScreen from '../screens/QuestsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import ARContentScreen from '../screens/ARContentScreen'; // NEW
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 export default function AppNavigator() {
   return (
@@ -46,6 +47,11 @@ export default function AppNavigator() {
         <Stack.Screen 
           name="Profile" 
           component={ProfileScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen 
+          name="ARContent" 
+          component={ARContentScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
