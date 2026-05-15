@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 
 export default function ARCameraScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
@@ -9,6 +10,7 @@ export default function ARCameraScreen({ navigation }) {
   // Handle QR code scan
   const handleBarCodeScanned = ({ type, data }) => {
     setScanned(true);
+     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     
     // Show preview alert
     Alert.alert(

@@ -28,9 +28,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "scheme": "begaverse",
-    "plugins": [
-      "expo-barcode-scanner"
-    ]
+    "scheme": "begaverse"
   }
 }

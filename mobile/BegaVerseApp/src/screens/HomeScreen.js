@@ -1,5 +1,65 @@
-import React from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, Animated } from 'react-native';
+import * as Haptics from 'expo-haptics';
+
+const AnimatedCard = ({ icon, title, description, onPress, delay }) => {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        delay: delay,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        delay: delay,
+        duration: 400,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 100,
+        useNativeDriver: true,
+      })
+    ]).start();
+    
+    setTimeout(onPress, 100);
+  };
+
+  return (
+    <Animated.View style={{
+      transform: [{ scale: scaleAnim }],
+      opacity: fadeAnim,
+    }}>
+      <TouchableOpacity 
+        style={styles.card}
+        onPress={handlePress}
+        activeOpacity={0.9}
+      >
+        <Text style={styles.cardIcon}>{icon}</Text>
+        <Text style={styles.cardTitle}>{title}</Text>
+        <Text style={styles.cardDescription}>{description}</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
 export default function HomeScreen({ navigation }) {
   return (
@@ -12,38 +72,36 @@ export default function HomeScreen({ navigation }) {
       <View style={styles.content}>
         <Text style={styles.sectionTitle}>Explore Bega</Text>
         
-        <TouchableOpacity 
-          style={styles.card}
+        <AnimatedCard
+          icon="📸"
+          title="Scan QR Code"
+          description="Unlock AR content at Bega locations"
           onPress={() => navigation.navigate('ARCamera')}
-        >
-          <Text style={styles.cardIcon}>📸</Text>
-          <Text style={styles.cardTitle}>Scan QR Code</Text>
-          <Text style={styles.cardDescription}>
-            Unlock AR content at Bega locations
-          </Text>
-        </TouchableOpacity>
+          delay={0}
+        />
 
-        <TouchableOpacity 
-          style={styles.card}
+        <AnimatedCard
+          icon="🎯"
+          title="Active Quests"
+          description="Complete challenges and earn rewards"
           onPress={() => navigation.navigate('Quests')}
-        >
-          <Text style={styles.cardIcon}>🎯</Text>
-          <Text style={styles.cardTitle}>Active Quests</Text>
-          <Text style={styles.cardDescription}>
-            Complete challenges and earn rewards
-          </Text>
-        </TouchableOpacity>
+          delay={100}
+        />
 
-        <TouchableOpacity 
-          style={styles.card}
+        <AnimatedCard
+          icon="👤"
+          title="Your Profile"
+          description="View your level, badges, and achievements"
           onPress={() => navigation.navigate('Profile')}
-        >
-          <Text style={styles.cardIcon}>👤</Text>
-          <Text style={styles.cardTitle}>Your Profile</Text>
-          <Text style={styles.cardDescription}>
-            View your level, badges, and achievements
-          </Text>
-        </TouchableOpacity>
+          delay={200}
+        />
+        <AnimatedCard
+  icon="🌊"
+  title="AR Dimension"
+  description="See Bega River in augmented reality"
+  onPress={() => navigation.navigate('ARDimension')}
+  delay={300}
+/>
       </View>
 
       <View style={styles.statsContainer}>

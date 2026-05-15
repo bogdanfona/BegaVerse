@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -6,8 +6,17 @@ import {
   Image, 
   ScrollView, 
   TouchableOpacity, 
-  Dimensions
+  Dimensions,
+  Animated,
+  Alert,
+  Platform
 } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { captureRef } from 'react-native-view-shot';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as Linking from 'expo-linking';
+import * as Speech from 'expo-speech';
 
 const { width, height } = Dimensions.get('window');
 
@@ -53,18 +62,250 @@ const MOCK_AR_CONTENT = {
 
 export default function ARContentScreen({ route, navigation }) {
   const { qrData } = route.params || {};
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState(true);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const viewRef = useRef(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   
   // Get content based on QR code data
   const content = MOCK_AR_CONTENT[qrData] || MOCK_AR_CONTENT['default'];
 
+  useEffect(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      })
+    ]).start();
+  }, []);
+
+  // Cleanup speech on unmount
+  useEffect(() => {
+    return () => {
+      if (isSpeaking) {
+        Speech.stop();
+      }
+    };
+  }, [isSpeaking]);
+
+  const handleActionPress = async (action) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    switch(action) {
+      case 'photo':
+        await takeARPhoto();
+        break;
+      case 'audio':
+        await playAudioGuide();
+        break;
+      case 'map':
+        await openInMap();
+        break;
+    }
+  };
+
+  // 📸 Take AR Photo (Proper Implementation - Actually Saves)
+  const takeARPhoto = async () => {
+  try {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    // Capture the screen
+    const uri = await captureRef(viewRef, {
+      format: 'png',
+      quality: 1,
+    });
+
+    // Create filename with timestamp
+    const filename = `BegaVerse_${Date.now()}.png`;
+    const newUri = `${FileSystem.documentDirectory}${filename}`;
+
+    // Move to permanent location
+    await FileSystem.copyAsync({
+      from: uri,
+      to: newUri
+    });
+
+    // Success feedback
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Ask user what to do with photo
+    Alert.alert(
+      '✅ Photo Captured!',
+      'Your AR photo is ready! What would you like to do?',
+      [
+        {
+          text: 'Share',
+          onPress: async () => {
+            try {
+              const canShare = await Sharing.isAvailableAsync();
+              if (canShare) {
+                await Sharing.shareAsync(newUri, {
+                  mimeType: 'image/png',
+                  dialogTitle: 'Share BegaVerse AR Photo',
+                  UTI: 'public.png'
+                });
+              } else {
+                Alert.alert('Sharing not available', 'Photo saved locally!');
+              }
+            } catch (shareError) {
+              console.error('Share error:', shareError);
+            }
+          }
+        },
+        {
+          text: 'OK',
+          style: 'default'
+        }
+      ]
+    );
+
+  } catch (error) {
+    console.error('Photo capture error:', error);
+    
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    
+    Alert.alert(
+      '❌ Capture Failed',
+      `Could not capture photo: ${error.message}`,
+      [{ text: 'OK' }]
+    );
+  }
+};
+
+  // 🔊 Play Audio Guide (Text-to-Speech)
+  const playAudioGuide = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      // If already speaking, stop it
+      if (isSpeaking) {
+        Speech.stop();
+        setIsSpeaking(false);
+        Alert.alert('🔇 Audio Stopped', 'Audio guide paused.');
+        return;
+      }
+
+      // Start speaking
+      setIsSpeaking(true);
+      
+      Alert.alert(
+        '🔊 Audio Guide Playing',
+        `Narration for ${content.title} is now playing...\n\nTap the Audio button again to stop.`,
+        [{ text: 'Got it!', style: 'default' }]
+      );
+
+      const narration = `${content.title}. Established in ${content.year}. ${content.story}`;
+
+      Speech.speak(narration, {
+        language: 'en-US',
+        pitch: 1.0,
+        rate: 0.9,
+        onDone: () => {
+          setIsSpeaking(false);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          Alert.alert(
+            '✅ Audio Complete',
+            'Narration finished!',
+            [{ text: 'OK' }]
+          );
+        },
+        onStopped: () => {
+          setIsSpeaking(false);
+        },
+        onError: (error) => {
+          console.error('Speech error:', error);
+          setIsSpeaking(false);
+          Alert.alert('Error', 'Failed to play audio. Please try again.');
+        }
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    } catch (error) {
+      console.error('Audio playback error:', error);
+      setIsSpeaking(false);
+      Alert.alert(
+        'Error',
+        'Failed to play audio guide. Please try again.',
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
+  // 🗺️ Open in Map
+  const openInMap = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      
+      // Bega River coordinates (center of Timișoara)
+      const latitude = 45.7489;
+      const longitude = 21.2087;
+      
+      const label = encodeURIComponent(content.title);
+      
+      // Different URL schemes for iOS and Android
+      const scheme = Platform.select({
+        ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
+        android: `geo:0,0?q=${latitude},${longitude}(${label})`
+      });
+
+      const url = Platform.select({
+        ios: scheme,
+        android: scheme,
+        default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
+      });
+
+      const supported = await Linking.canOpenURL(url);
+
+      if (supported) {
+        Alert.alert(
+          '🗺️ Open in Maps?',
+          `This will open ${content.title} location in your maps app.`,
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Open Maps', 
+              onPress: async () => {
+                await Linking.openURL(url);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              }
+            }
+          ]
+        );
+      } else {
+        await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`);
+      }
+    } catch (error) {
+      console.error('Map opening error:', error);
+      Alert.alert('Error', 'Failed to open maps. Please try again.');
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <Animated.View 
+      ref={viewRef}
+      style={[styles.container, { opacity: fadeAnim }]}
+      collapsable={false}
+    >
       {/* Background Image */}
       <Image
         source={{ uri: content.image }}
         style={styles.backgroundImage}
         onLoad={() => setImageLoaded(true)}
+        onError={(error) => {
+          console.log('Image failed to load:', error);
+          setImageLoaded(true);
+        }}
       />
       
       {/* Overlay Gradient */}
@@ -76,22 +317,43 @@ export default function ARContentScreen({ route, navigation }) {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Header */}
-        <View style={styles.header}>
+        <Animated.View 
+          style={[
+            styles.header,
+            { transform: [{ translateY: slideAnim }] }
+          ]}
+        >
           <View style={styles.titleContainer}>
             <Text style={styles.arBadge}>🔍 AR VIEW</Text>
             <Text style={styles.title}>{content.title}</Text>
             <Text style={styles.year}>Est. {content.year}</Text>
           </View>
-        </View>
+        </Animated.View>
 
         {/* Story Card */}
-        <View style={styles.card}>
+        <Animated.View 
+          style={[
+            styles.card,
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }] 
+            }
+          ]}
+        >
           <Text style={styles.cardTitle}>📜 Historical Story</Text>
           <Text style={styles.storyText}>{content.story}</Text>
-        </View>
+        </Animated.View>
 
         {/* Fun Facts */}
-        <View style={styles.card}>
+        <Animated.View 
+          style={[
+            styles.card,
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }] 
+            }
+          ]}
+        >
           <Text style={styles.cardTitle}>💡 Fun Facts</Text>
           {content.facts.map((fact, index) => (
             <View key={index} style={styles.factItem}>
@@ -99,52 +361,92 @@ export default function ARContentScreen({ route, navigation }) {
               <Text style={styles.factText}>{fact}</Text>
             </View>
           ))}
-        </View>
+        </Animated.View>
 
         {/* Interactive Actions */}
-        <View style={styles.actionsCard}>
-          <TouchableOpacity style={styles.actionButton}>
+        <Animated.View 
+          style={[
+            styles.actionsCard,
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }] 
+            }
+          ]}
+        >
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleActionPress('photo')}
+            activeOpacity={0.7}
+          >
             <Text style={styles.actionIcon}>📸</Text>
             <Text style={styles.actionText}>Take AR Photo</Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton}>
-            <Text style={styles.actionIcon}>🔊</Text>
-            <Text style={styles.actionText}>Audio Guide</Text>
+          <TouchableOpacity 
+            style={[
+              styles.actionButton,
+              isSpeaking && styles.actionButtonActive
+            ]}
+            onPress={() => handleActionPress('audio')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.actionIcon}>{isSpeaking ? '🔇' : '🔊'}</Text>
+            <Text style={styles.actionText}>
+              {isSpeaking ? 'Stop Audio' : 'Audio Guide'}
+            </Text>
           </TouchableOpacity>
           
-          <TouchableOpacity style={styles.actionButton}>
+          <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => handleActionPress('map')}
+            activeOpacity={0.7}
+          >
             <Text style={styles.actionIcon}>🗺️</Text>
             <Text style={styles.actionText}>View on Map</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         {/* Quest Complete */}
-        <View style={styles.questComplete}>
+        <Animated.View 
+          style={[
+            styles.questComplete,
+            { 
+              opacity: fadeAnim,
+              transform: [{ scale: fadeAnim }] 
+            }
+          ]}
+        >
           <Text style={styles.questIcon}>🎉</Text>
           <Text style={styles.questTitle}>Location Discovered!</Text>
           <Text style={styles.questReward}>+50 XP Earned</Text>
-        </View>
+        </Animated.View>
 
         {/* Spacer for bottom button */}
         <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Close Button */}
-      <TouchableOpacity 
-        style={styles.closeButton}
-        onPress={() => navigation.goBack()}
+      <Animated.View
+        style={[
+          styles.closeButtonContainer,
+          { 
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }] 
+          }
+        ]}
       >
-        <Text style={styles.closeButtonText}>✕ Close AR View</Text>
-      </TouchableOpacity>
-
-      {/* Loading Indicator */}
-      {!imageLoaded && (
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading AR Content...</Text>
-        </View>
-      )}
-    </View>
+        <TouchableOpacity 
+          style={styles.closeButton}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.goBack();
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.closeButtonText}>✕ Close AR View</Text>
+        </TouchableOpacity>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -261,6 +563,11 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
+  actionButtonActive: {
+    backgroundColor: 'rgba(0, 119, 190, 0.2)',
+    borderWidth: 2,
+    borderColor: '#0077BE',
+  },
   actionIcon: {
     fontSize: 28,
     marginBottom: 8,
@@ -293,11 +600,13 @@ const styles = StyleSheet.create({
     color: '#FFB74D',
     fontWeight: 'bold',
   },
-  closeButton: {
+  closeButtonContainer: {
     position: 'absolute',
     bottom: 30,
     left: 20,
     right: 20,
+  },
+  closeButton: {
     backgroundColor: '#0077BE',
     padding: 18,
     borderRadius: 30,
@@ -313,19 +622,4 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
   },
-  loadingContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-}); 
+});

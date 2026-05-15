@@ -1,5 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useRef } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, Animated } from 'react-native';
+import * as Haptics from 'expo-haptics';
 
 const MOCK_QUESTS = [
   {
@@ -33,34 +34,57 @@ const MOCK_QUESTS = [
 
 export default function QuestsScreen({ navigation }) {
   const renderQuest = (quest) => {
-    const progressPercent = (quest.progress / quest.total) * 100;
+  const progressPercent = (quest.progress / quest.total) * 100;
+  const progressAnim = useRef(new Animated.Value(0)).current;
 
-    return (
-      <View key={quest.id} style={styles.questCard}>
-        <View style={styles.questHeader}>
-          <Text style={styles.questTitle}>{quest.title}</Text>
-          <View style={styles.xpBadge}>
-            <Text style={styles.xpText}>+{quest.xp} XP</Text>
-          </View>
-        </View>
-        
-        <Text style={styles.questDescription}>{quest.description}</Text>
-        
-        <View style={styles.progressContainer}>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-          </View>
-          <Text style={styles.progressText}>
-            {quest.progress}/{quest.total}
-          </Text>
-        </View>
+  React.useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progressPercent,
+      duration: 1000,
+      delay: quest.id * 100,
+      useNativeDriver: false,
+    }).start();
+  }, []);
 
-        <TouchableOpacity style={styles.questButton}>
-          <Text style={styles.questButtonText}>View Details →</Text>
-        </TouchableOpacity>
+  return (
+    <View key={quest.id} style={styles.questCard}>
+      <View style={styles.questHeader}>
+        <Text style={styles.questTitle}>{quest.title}</Text>
+        <View style={styles.xpBadge}>
+          <Text style={styles.xpText}>+{quest.xp} XP</Text>
+        </View>
       </View>
-    );
-  };
+      
+      <Text style={styles.questDescription}>{quest.description}</Text>
+      
+      <View style={styles.progressContainer}>
+        <View style={styles.progressBar}>
+          <Animated.View 
+            style={[
+              styles.progressFill, 
+              { 
+                width: progressAnim.interpolate({
+                  inputRange: [0, 100],
+                  outputRange: ['0%', '100%']
+                })
+              }
+            ]} 
+          />
+        </View>
+        <Text style={styles.progressText}>
+          {quest.progress}/{quest.total}
+        </Text>
+      </View>
+
+      <TouchableOpacity 
+        style={styles.questButton}
+        onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+      >
+        <Text style={styles.questButtonText}>View Details →</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
   return (
     <ScrollView style={styles.container}>

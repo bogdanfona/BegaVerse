@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { getTopUsers, updateUserScore, addXP } from '../services/leaderboardService';
+import * as Haptics from 'expo-haptics';
 
 const MOCK_BADGES = [
   { id: 1, icon: '🌉', name: 'Bridge Explorer', earned: true },
@@ -49,6 +50,8 @@ export default function ProfileScreen({ navigation }) {
   };
 
   const handleAddXP = async () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    
     const result = await addXP(CURRENT_USER_ID, 50);
     if (result.success) {
       alert(`+50 XP! You now have ${result.newXP} XP (Level ${result.newLevel})`);
@@ -57,9 +60,34 @@ export default function ProfileScreen({ navigation }) {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0077BE" />
-        <Text style={styles.loadingText}>Loading leaderboard...</Text>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <View style={styles.skeletonAvatar} />
+          <View style={styles.skeletonText} />
+          <View style={[styles.skeletonText, { width: 100 }]} />
+        </View>
+        
+        <View style={styles.content}>
+          <View style={styles.card}>
+            <View style={styles.skeletonTitle} />
+            <View style={styles.skeletonBox} />
+            <View style={styles.skeletonBox} />
+          </View>
+          
+          <View style={styles.card}>
+            <View style={styles.skeletonTitle} />
+            <View style={styles.skeletonBox} />
+            <View style={styles.skeletonBox} />
+            <View style={styles.skeletonBox} />
+          </View>
+          
+          <View style={styles.card}>
+            <View style={styles.skeletonTitle} />
+            <View style={styles.skeletonBox} />
+            <View style={styles.skeletonBox} />
+            <View style={styles.skeletonBox} />
+          </View>
+        </View>
       </View>
     );
   }
@@ -111,7 +139,10 @@ export default function ProfileScreen({ navigation }) {
           </View>
           
           {/* Test Button */}
-          <TouchableOpacity style={styles.addXPButton} onPress={handleAddXP}>
+          <TouchableOpacity 
+            style={styles.addXPButton} 
+            onPress={handleAddXP}
+          >
             <Text style={styles.addXPText}>🎉 +50 XP (Test)</Text>
           </TouchableOpacity>
         </View>
@@ -121,16 +152,18 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Badges</Text>
           <View style={styles.badgesGrid}>
             {MOCK_BADGES.map((badge) => (
-              <View 
-                key={badge.id} 
+              <TouchableOpacity
+                key={badge.id}
                 style={[
                   styles.badge,
                   !badge.earned && styles.badgeLocked
                 ]}
+                onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                activeOpacity={0.7}
               >
                 <Text style={styles.badgeIcon}>{badge.icon}</Text>
                 <Text style={styles.badgeName}>{badge.name}</Text>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         </View>
@@ -141,12 +174,14 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.liveIndicator}>🔴 Live updates</Text>
           
           {leaderboard.map((user) => (
-            <View 
-              key={user.id} 
+            <TouchableOpacity
+              key={user.id}
               style={[
                 styles.leaderboardItem,
                 user.id === CURRENT_USER_ID && styles.currentUserItem
               ]}
+              onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+              activeOpacity={0.8}
             >
               <Text style={styles.rank}>#{user.rank}</Text>
               <Text style={styles.userAvatar}>{user.avatar}</Text>
@@ -157,13 +192,16 @@ export default function ProfileScreen({ navigation }) {
                 <Text style={styles.userLevel}>Level {user.level}</Text>
               </View>
               <Text style={styles.userXP}>{user.xp} XP</Text>
-            </View>
+            </TouchableOpacity>
           ))}
         </View>
 
         <TouchableOpacity 
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            navigation.goBack();
+          }}
         >
           <Text style={styles.backButtonText}>← Back to Home</Text>
         </TouchableOpacity>
@@ -176,17 +214,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F5',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 16,
-    color: '#666',
   },
   header: {
     backgroundColor: '#0077BE',
@@ -385,5 +412,34 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     color: '#666',
+  },
+  // Skeleton Loading Styles
+  skeletonAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginBottom: 15,
+  },
+  skeletonText: {
+    width: 150,
+    height: 20,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+    borderRadius: 4,
+    marginBottom: 8,
+  },
+  skeletonTitle: {
+    width: 120,
+    height: 18,
+    backgroundColor: '#E0E0E0',
+    borderRadius: 4,
+    marginBottom: 15,
+  },
+  skeletonBox: {
+    width: '100%',
+    height: 60,
+    backgroundColor: '#F5F5F5',
+    borderRadius: 8,
+    marginBottom: 10,
   },
 });
