@@ -1,5 +1,6 @@
-import React from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { getTopUsers, updateUserScore, addXP } from '../services/leaderboardService';
 
 const MOCK_BADGES = [
   { id: 1, icon: '🌉', name: 'Bridge Explorer', earned: true },
@@ -8,23 +9,69 @@ const MOCK_BADGES = [
   { id: 4, icon: '⭐', name: 'Bega Legend', earned: false },
 ];
 
-const LEADERBOARD = [
-  { rank: 1, name: 'Ana M.', xp: 2500, avatar: '👩' },
-  { rank: 2, name: 'Mihai P.', xp: 2100, avatar: '👨' },
-  { rank: 3, name: 'You', xp: 850, avatar: '🧑', isCurrentUser: true },
-  { rank: 4, name: 'Elena D.', xp: 720, avatar: '👧' },
-  { rank: 5, name: 'Andrei T.', xp: 650, avatar: '👦' },
-];
+// Current user ID (in real app, this comes from authentication)
+const CURRENT_USER_ID = 'user_bogdan';
 
 export default function ProfileScreen({ navigation }) {
+  const [leaderboard, setLeaderboard] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState(null);
+
+  useEffect(() => {
+    // Initialize current user if doesn't exist
+    initializeUser();
+
+    // Listen to leaderboard changes
+    const unsubscribe = getTopUsers(10, (users) => {
+      setLeaderboard(users);
+      
+      // Find current user in leaderboard
+      const user = users.find(u => u.id === CURRENT_USER_ID);
+      if (user) {
+        setCurrentUser(user);
+      }
+      
+      setLoading(false);
+    });
+
+    // Cleanup listener
+    return () => unsubscribe && unsubscribe();
+  }, []);
+
+  const initializeUser = async () => {
+    // Add current user to Firebase if not exists
+    await updateUserScore(CURRENT_USER_ID, {
+      name: 'Bogdan Fona',
+      xp: 850,
+      level: 5,
+      avatar: '🧑',
+    });
+  };
+
+  const handleAddXP = async () => {
+    const result = await addXP(CURRENT_USER_ID, 50);
+    if (result.success) {
+      alert(`+50 XP! You now have ${result.newXP} XP (Level ${result.newLevel})`);
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0077BE" />
+        <Text style={styles.loadingText}>Loading leaderboard...</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
         <View style={styles.avatarContainer}>
-          <Text style={styles.avatar}>🧑</Text>
+          <Text style={styles.avatar}>{currentUser?.avatar || '🧑'}</Text>
         </View>
-        <Text style={styles.username}>Bogdan Fona</Text>
-        <Text style={styles.level}>Level 5 Explorer</Text>
+        <Text style={styles.username}>{currentUser?.name || 'Bogdan Fona'}</Text>
+        <Text style={styles.level}>Level {currentUser?.level || 5} Explorer</Text>
       </View>
 
       <View style={styles.content}>
@@ -33,7 +80,7 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Your Stats</Text>
           <View style={styles.statsGrid}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>850</Text>
+              <Text style={styles.statValue}>{currentUser?.xp || 850}</Text>
               <Text style={styles.statLabel}>Total XP</Text>
             </View>
             <View style={styles.statItem}>
@@ -56,10 +103,17 @@ export default function ProfileScreen({ navigation }) {
           <Text style={styles.sectionTitle}>Level Progress</Text>
           <View style={styles.xpContainer}>
             <View style={styles.xpBar}>
-              <View style={[styles.xpFill, { width: '65%' }]} />
+              <View style={[styles.xpFill, { width: `${((currentUser?.xp || 850) % 100)}%` }]} />
             </View>
-            <Text style={styles.xpText}>850 / 1000 XP to Level 6</Text>
+            <Text style={styles.xpText}>
+              {currentUser?.xp || 850} / {((currentUser?.level || 5) * 100)} XP to Level {(currentUser?.level || 5) + 1}
+            </Text>
           </View>
+          
+          {/* Test Button */}
+          <TouchableOpacity style={styles.addXPButton} onPress={handleAddXP}>
+            <Text style={styles.addXPText}>🎉 +50 XP (Test)</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Badges */}
@@ -81,20 +135,27 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
-        {/* Leaderboard */}
+        {/* REAL-TIME LEADERBOARD */}
         <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🏆 Leaderboard</Text>
-          {LEADERBOARD.map((user) => (
+          <Text style={styles.sectionTitle}>🏆 Live Leaderboard</Text>
+          <Text style={styles.liveIndicator}>🔴 Live updates</Text>
+          
+          {leaderboard.map((user) => (
             <View 
-              key={user.rank} 
+              key={user.id} 
               style={[
                 styles.leaderboardItem,
-                user.isCurrentUser && styles.currentUserItem
+                user.id === CURRENT_USER_ID && styles.currentUserItem
               ]}
             >
               <Text style={styles.rank}>#{user.rank}</Text>
               <Text style={styles.userAvatar}>{user.avatar}</Text>
-              <Text style={styles.userName}>{user.name}</Text>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>
+                  {user.name} {user.id === CURRENT_USER_ID && '(You)'}
+                </Text>
+                <Text style={styles.userLevel}>Level {user.level}</Text>
+              </View>
               <Text style={styles.userXP}>{user.xp} XP</Text>
             </View>
           ))}
@@ -115,6 +176,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F5F5F5',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F5',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+    color: '#666',
   },
   header: {
     backgroundColor: '#0077BE',
@@ -175,6 +247,12 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 15,
   },
+  liveIndicator: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginBottom: 10,
+    fontWeight: 'bold',
+  },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -216,6 +294,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     textAlign: 'center',
+  },
+  addXPButton: {
+    backgroundColor: '#4CAF50',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 15,
+    alignItems: 'center',
+  },
+  addXPText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
   },
   badgesGrid: {
     flexDirection: 'row',
@@ -265,10 +355,18 @@ const styles = StyleSheet.create({
     fontSize: 30,
     marginRight: 10,
   },
+  userInfo: {
+    flex: 1,
+  },
   userName: {
     fontSize: 16,
     color: '#333',
-    flex: 1,
+    fontWeight: 'bold',
+  },
+  userLevel: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
   },
   userXP: {
     fontSize: 14,
