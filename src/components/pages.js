@@ -109,9 +109,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · ADMIN DASHBOARD</div>
-        <h1 class="page-title">Bega River<br><em>Digital Twin</em></h1>
-        <p class="page-subtitle">Real-time overview — Timișoara, Romania</p>
+        <div class="page-breadcrumb">BV-01 · COMMAND DASHBOARD · SITREP</div>
+        <h1 class="page-title">Bega River<br><em>Command</em></h1>
+        <p class="page-subtitle">Operational overview — Timișoara Sector · Romania</p>
       </div>
 
       <!-- Key Metrics -->
@@ -247,9 +247,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · CANAL</div>
-        <h1 class="page-title">Bega Canal</h1>
-        <p class="page-subtitle">Interactive digital twin — explore sensors, zones & underwater data</p>
+        <div class="page-breadcrumb">BV-01 · CANAL RECONNAISSANCE</div>
+        <h1 class="page-title">Canal<br><em>Recon</em></h1>
+        <p class="page-subtitle">Live field map — sensor nodes, zones &amp; underwater intelligence</p>
       </div>
 
       <!-- Full canal map -->
@@ -324,9 +324,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · TIME TRAVEL</div>
-        <h1 class="page-title">Bega Through<br><em>Time</em></h1>
-        <p class="page-subtitle">Scan QR codes along the canal to unlock each historical era in AR</p>
+        <div class="page-breadcrumb">BV-01 · INTELLIGENCE ARCHIVE</div>
+        <h1 class="page-title">Historical<br><em>Intel</em></h1>
+        <p class="page-subtitle">Declassified records — scan QR codes at canal positions to unlock each era</p>
       </div>
 
       <!-- Era selector -->
@@ -382,9 +382,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · LAND & BUILD</div>
-        <h1 class="page-title">Build Along<br><em>Bega</em></h1>
-        <p class="page-subtitle">Buy parcels, plant trees, add benches & parks — all linked to the real riverbank</p>
+        <div class="page-breadcrumb">BV-01 · OPERATIONS ZONE</div>
+        <h1 class="page-title">Riverbank<br><em>Ops</em></h1>
+        <p class="page-subtitle">Acquire parcels, deploy assets — all linked to real-world coordinates on the Bega</p>
       </div>
 
       <div class="grid-2-3">
@@ -464,9 +464,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · AR SCANNER</div>
-        <h1 class="page-title">AR Experience</h1>
-        <p class="page-subtitle">How the mobile AR system works — scan, discover, report</p>
+        <div class="page-breadcrumb">BV-01 · FIELD AR UNIT</div>
+        <h1 class="page-title">Field<br><em>AR</em></h1>
+        <p class="page-subtitle">Mobile augmented reality system — scan, identify, report</p>
       </div>
 
       <div class="grid-2" style="margin-bottom:24px;">
@@ -606,9 +606,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · IOT SENSORS</div>
-        <h1 class="page-title">Sensor<br><em>Dashboard</em></h1>
-        <p class="page-subtitle">Real-time readings from ${sensors.length} ESP32 nodes along the Bega Canal &middot; Updates every 10 min via MQTT</p>
+        <div class="page-breadcrumb">BV-01 · SENSOR NETWORK · SURVEILLANCE</div>
+        <h1 class="page-title">Sensor<br><em>Net</em></h1>
+        <p class="page-subtitle">Live telemetry from ${sensors.length} ESP32 nodes deployed along the Bega &middot; MQTT uplink &middot; 10-min interval</p>
       </div>
 
       <div class="grid-4" style="margin-bottom:24px;">
@@ -636,20 +636,38 @@ const Pages = {
       </div>
 
       <div class="section-title">Sensor Network Map</div>
-      <div class="card" style="padding:0;margin-bottom:24px;overflow:hidden;">
-        ${mapHtml}
+      <div class="card" style="padding:0;margin-bottom:8px;overflow:hidden;">
+        <div style="position:relative;">
+          ${mapHtml}
+          <div id="map-click-overlay" onclick="handleMapClick(event)"
+            style="position:absolute;inset:0;z-index:5;pointer-events:none;cursor:crosshair;"></div>
+          <div id="map-add-hint"
+            style="display:none;position:absolute;top:12px;left:50%;transform:translateX(-50%);
+            background:rgba(7,18,32,0.88);border:1px solid rgba(79,195,247,0.5);border-radius:8px;
+            padding:6px 16px;font-family:var(--font-mono);font-size:0.68rem;color:var(--bega-cyan);
+            z-index:6;pointer-events:none;white-space:nowrap;backdrop-filter:blur(4px);">
+            &#9654; Click anywhere on the canal to place a sensor
+          </div>
+        </div>
         <div style="padding:10px 16px;display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--bega-border);flex-wrap:wrap;gap:8px;">
           <div style="display:flex;gap:10px;flex-wrap:wrap;">
             <div class="map-badge"><span style="color:#66BB6A;">&#9679;</span> ${online} online</div>
             <div class="map-badge"><span style="color:#FFA726;">&#9679;</span> ${warning} warning</div>
             <div class="map-badge"><span style="color:#EF5350;">&#9679;</span> ${offline} offline</div>
           </div>
-          <div style="font-family:var(--font-mono);font-size:0.65rem;color:rgba(79,195,247,0.45);display:flex;align-items:center;gap:6px;">
-            <span class="pulse-dot" style="width:5px;height:5px;"></span>
-            <span id="last-updated-ts">Live feed active</span>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="font-family:var(--font-mono);font-size:0.65rem;color:rgba(79,195,247,0.45);display:flex;align-items:center;gap:6px;">
+              <span class="pulse-dot" style="width:5px;height:5px;"></span>
+              <span id="last-updated-ts">Live feed active</span>
+            </div>
+            <button id="btn-add-sensor" class="btn btn-ghost" onclick="toggleAddSensorMode()"
+              style="font-size:0.72rem;padding:6px 14px;display:flex;align-items:center;gap:6px;">
+              + Add Sensor
+            </button>
           </div>
         </div>
       </div>
+      <div id="sensor-placement-form" style="display:none;margin-bottom:24px;"></div>
 
       <div class="section-title">Live Readings &mdash; All Sensors</div>
       <div class="grid-2" id="sensor-cards-grid" style="margin-bottom:28px;">
@@ -696,9 +714,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · REPORTS</div>
-        <h1 class="page-title">Pollution Reports</h1>
-        <p class="page-subtitle">Citizen-submitted via AR app · AI-classified · Municipality-reviewed</p>
+        <div class="page-breadcrumb">BV-01 · INCIDENT LOG</div>
+        <h1 class="page-title">Incident<br><em>Log</em></h1>
+        <p class="page-subtitle">Field-submitted via AR unit · AI-classified · Command-reviewed</p>
       </div>
 
       <div class="grid-3" style="margin-bottom:24px;">
@@ -756,9 +774,9 @@ const Pages = {
     return `
     <div class="page-enter">
       <div class="page-header">
-        <div class="page-breadcrumb">BEGAVERSE · BLOCKCHAIN</div>
-        <h1 class="page-title">On-Chain<br><em>Transparency</em></h1>
-        <p class="page-subtitle">All sensor data immutably stored on Ethereum Sepolia testnet via Ethers.js</p>
+        <div class="page-breadcrumb">BV-01 · DATA LEDGER · INTEGRITY</div>
+        <h1 class="page-title">Data<br><em>Ledger</em></h1>
+        <p class="page-subtitle">Immutable sensor record — Ethereum Sepolia · tamper-proof public audit trail</p>
       </div>
 
       <div class="grid-3" style="margin-bottom:24px;">

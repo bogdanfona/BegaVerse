@@ -77,8 +77,12 @@ const Charts = {
     const width = 800;
     const height = 260;
 
+    // Position sensors by longitude so user-placed sensors appear at the right location
+    const lonMin = 21.195, lonMax = 21.237;
+    const xFromLon = lon => Math.max(25, Math.min(775, 40 + (lon - lonMin) / (lonMax - lonMin) * 720));
+
     const sensorMarkers = sensors.map((s, i) => {
-      const x = 80 + i * 140;
+      const x = xFromLon(s.lon);
       const y = 100 + (i % 2 === 0 ? -15 : 15);
       const color = s.status === 'online' ? '#66BB6A' : s.status === 'warning' ? '#FFA726' : '#EF5350';
       return `

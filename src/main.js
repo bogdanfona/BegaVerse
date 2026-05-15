@@ -275,6 +275,110 @@ function updateSimStats() {
   if (scoreEl) scoreEl.textContent = trees * 10 + objects * 5;
 }
 
+// ——— SENSOR PLACEMENT ———
+
+function getNextSensorId() {
+  const nums = MOCK_DATA.sensors.map(s => parseInt(s.id.replace('S', '')) || 0);
+  return 'S' + String(Math.max(...nums, 0) + 1).padStart(3, '0');
+}
+
+function toggleAddSensorMode() {
+  const overlay = document.getElementById('map-click-overlay');
+  const hint    = document.getElementById('map-add-hint');
+  const btn     = document.getElementById('btn-add-sensor');
+  if (!overlay) return;
+
+  const active = overlay.style.pointerEvents === 'all';
+  overlay.style.pointerEvents = active ? 'none' : 'all';
+  if (hint) hint.style.display = active ? 'none' : 'block';
+  if (btn)  { btn.style.color = active ? '' : 'var(--bega-cyan)'; btn.style.borderColor = active ? '' : 'var(--bega-cyan)'; }
+  if (active) cancelAddSensor();
+}
+
+function handleMapClick(event) {
+  const overlay = document.getElementById('map-click-overlay');
+  if (!overlay || overlay.style.pointerEvents !== 'all') return;
+
+  const rect = overlay.getBoundingClientRect();
+  const fx = (event.clientX - rect.left) / rect.width;   // 0..1 left→right
+  const fy = (event.clientY - rect.top)  / rect.height;  // 0..1 top→bottom
+
+  // Map SVG fraction to approximate Bega Canal lat/lon
+  // Canal spans ~21.195E–21.237E west→east, ~45.753N at top
+  const lon = parseFloat((21.195 + fx * 0.042).toFixed(4));
+  const lat = parseFloat((45.753 - fy * 0.010).toFixed(4));
+
+  showSensorPlacementForm(lat, lon);
+}
+
+function showSensorPlacementForm(lat, lon) {
+  const formDiv = document.getElementById('sensor-placement-form');
+  if (!formDiv) return;
+  const id = getNextSensorId();
+
+  formDiv.style.display = 'block';
+  formDiv.innerHTML =
+    '<div class="card" style="border-color:var(--bega-cyan);animation:fadeSlideIn 0.2s ease forwards;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">' +
+        '<div class="card-title"><span class="dot" style="background:var(--bega-cyan);"></span>New Sensor &mdash; ' + id + '</div>' +
+        '<div class="badge badge-online" style="display:inline-flex;align-items:center;gap:5px;"><span class="pulse-dot" style="width:5px;height:5px;flex-shrink:0;"></span>Will go online</div>' +
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">' +
+        '<div>' +
+          '<div class="card-label" style="margin-bottom:6px;">Sensor Name</div>' +
+          '<input id="new-sensor-name" type="text" placeholder="e.g. Podul Traian"' +
+          ' style="width:100%;background:rgba(79,195,247,0.06);border:1px solid var(--bega-border);' +
+          'border-radius:8px;padding:8px 12px;color:#e8f4fd;font-family:var(--font-mono);font-size:0.82rem;' +
+          'outline:none;box-sizing:border-box;transition:border-color 0.2s;"' +
+          ' onfocus="this.style.borderColor=\'var(--bega-cyan)\'"' +
+          ' onblur="this.style.borderColor=\'var(--bega-border)\'"' +
+          ' onkeydown="if(event.key===\'Enter\')confirmAddSensor(\'' + id + '\',' + lat + ',' + lon + ')">' +
+        '</div>' +
+        '<div>' +
+          '<div class="card-label" style="margin-bottom:6px;">Coordinates</div>' +
+          '<div style="font-family:var(--font-mono);font-size:0.78rem;color:var(--bega-cyan);padding:8px 0;">' + lat + '&deg;N &middot; ' + lon + '&deg;E</div>' +
+          '<div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(79,195,247,0.35);">Bega Canal &middot; Timi&#537;oara</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="background:rgba(79,195,247,0.04);border-radius:8px;padding:10px 14px;margin-bottom:16px;border:1px solid var(--bega-border);">' +
+        '<div class="card-label" style="margin-bottom:8px;">Initial readings &mdash; simulated until physical sensor connects</div>' +
+        '<div style="display:flex;gap:20px;flex-wrap:wrap;">' +
+          '<span style="font-family:var(--font-mono);font-size:0.75rem;"><span style="color:rgba(79,195,247,0.5);">pH </span><span style="color:#66BB6A;">7.0</span></span>' +
+          '<span style="font-family:var(--font-mono);font-size:0.75rem;"><span style="color:rgba(79,195,247,0.5);">Turbidity </span><span style="color:#66BB6A;">15 NTU</span></span>' +
+          '<span style="font-family:var(--font-mono);font-size:0.75rem;"><span style="color:rgba(79,195,247,0.5);">Temp </span><span style="color:#66BB6A;">18.0&deg;C</span></span>' +
+          '<span style="font-family:var(--font-mono);font-size:0.75rem;"><span style="color:rgba(79,195,247,0.5);">O&#8322; </span><span style="color:#66BB6A;">8.0 mg/L</span></span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;">' +
+        '<button class="btn" onclick="confirmAddSensor(\'' + id + '\',' + lat + ',' + lon + ')" style="font-size:0.8rem;padding:8px 18px;">&#10003; Place Sensor</button>' +
+        '<button class="btn btn-ghost" onclick="cancelAddSensor()" style="font-size:0.8rem;padding:8px 16px;">Cancel</button>' +
+      '</div>' +
+    '</div>';
+
+  formDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  setTimeout(() => { const inp = document.getElementById('new-sensor-name'); if (inp) inp.focus(); }, 80);
+}
+
+function confirmAddSensor(id, lat, lon) {
+  const nameInput = document.getElementById('new-sensor-name');
+  const name = nameInput && nameInput.value.trim() ? nameInput.value.trim() : 'Sensor ' + id;
+
+  const ph          = parseFloat((7.0  + (Math.random() - 0.5) * 0.6).toFixed(1));
+  const turbidity   = Math.round(15   + (Math.random() - 0.5) * 10);
+  const temperature = parseFloat((18.0 + (Math.random() - 0.5) * 2.0).toFixed(1));
+  const oxygen      = parseFloat((8.0  + (Math.random() - 0.5) * 1.0).toFixed(1));
+  const history     = Array.from({ length: 12 }, () => parseFloat((ph + (Math.random() - 0.5) * 0.3).toFixed(1)));
+
+  MOCK_DATA.sensors.push({ id, name, lat, lon, status: 'online', ph, turbidity, temperature, oxygen, history, custom: true });
+
+  navigate('sensors');
+}
+
+function cancelAddSensor() {
+  const formDiv = document.getElementById('sensor-placement-form');
+  if (formDiv) formDiv.style.display = 'none';
+}
+
 // ——— INIT ———
 
 document.addEventListener('DOMContentLoaded', () => {
