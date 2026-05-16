@@ -246,7 +246,7 @@ function make3DTree(x, z) {
   crown.position.set(0, 1.9, 0);
   const group = new THREE.Group();
   group.add(trunk, crown);
-  group.position.set(x, 0, z);
+  group.position.set(x, 2.4, z);
   return group;
 }
 
@@ -263,7 +263,7 @@ function make3DBench(x, z) {
   back.position.set(0, 0.82, -0.18);
   const group = new THREE.Group();
   group.add(seat, back);
-  group.position.set(x, 0, z);
+  group.position.set(x, 2.4, z);
   return group;
 }
 
@@ -285,7 +285,7 @@ function make3DFlowers(x, z) {
     head.position.set(ox, 0.55, oz);
     group.add(stem, head);
   }
-  group.position.set(x, 0, z);
+  group.position.set(x, 2.4, z);
   return group;
 }
 
@@ -302,7 +302,7 @@ function make3DLamp(x, z) {
   head.position.set(0, 3.6, 0);
   const group = new THREE.Group();
   group.add(pole, head);
-  group.position.set(x, 0, z);
+  group.position.set(x, 2.4, z);
   return group;
 }
 
@@ -317,7 +317,7 @@ function make3DFountain(x, z) {
   top.position.y = 1.2;
   const group = new THREE.Group();
   group.add(base, bowl, column, top);
-  group.position.set(x, 0, z);
+  group.position.set(x, 2.4, z);
   return group;
 }
 
@@ -538,7 +538,7 @@ export default function ARDimensionScreen({ navigation }) {
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.left = sun.shadow.camera.bottom = -80;
     sun.shadow.camera.right = sun.shadow.camera.top = 80;
-    sun.shadow.camera.far = 200;
+    sun.shadow.camera.far = 250;
     scene.add(sun);
     const fill = new THREE.DirectionalLight(0xc8dff0, 0.3);
     fill.position.set(-30, 40, -20);
@@ -550,15 +550,15 @@ export default function ARDimensionScreen({ navigation }) {
     const cTex = concreteTex();    cTex.repeat.set(4, 50);
     const wTex = wetConcreteTex(); wTex.repeat.set(3, 35);
 
-    // Grass ground (wide, outside the promenade)
+    // Grass ground (wide, outside the promenade) — raised to wall-top level
     const grassMat = new THREE.MeshLambertMaterial({ map: gTex });
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 42, z => cX(z) - 17, 80, -0.05), grassMat));
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) + 17, z => cX(z) + 42, 80, -0.05), grassMat));
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 42, z => cX(z) - 17, 80, 2.4), grassMat));
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) + 17, z => cX(z) + 42, 80, 2.4), grassMat));
 
-    // Promenade — light concrete path running along each bank
+    // Promenade — flush with the top of the canal retaining walls
     const promMat = new THREE.MeshLambertMaterial({ map: aTex });
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 17, z => cX(z) - 9.8, 80, 0.0), promMat));
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) +  9.8, z => cX(z) + 17, 80, 0.0), promMat));
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 17, z => cX(z) - 7.5, 80, 2.4), promMat));
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) +  7.5, z => cX(z) + 17, 80, 2.4), promMat));
 
     // ── Concrete canal walls (Bega-style retaining walls) ─────────────
     // The Bega canal has vertical concrete walls rising ~2.5 m above water.
@@ -579,13 +579,9 @@ export default function ARDimensionScreen({ navigation }) {
     scene.add(new THREE.Mesh(createCanalWall(z => cX(z) - 7.5, -0.5, 0.3, 80), wetMat));
     scene.add(new THREE.Mesh(createCanalWall(z => cX(z) + 7.5, -0.5, 0.3, 80), wetMat));
 
-    // Wall cap / coping ledge (horizontal top of wall, 1.3 m wide)
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 9.8, z => cX(z) - 7.5, 80, 2.4), capMat));
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) +  7.5, z => cX(z) +  9.8, 80, 2.4), capMat));
-
-    // Outer wall face (street-side retaining face)
-    scene.add(new THREE.Mesh(createCanalWall(z => cX(z) - 9.8, 0.0, 2.4, 80), concreteMat));
-    scene.add(new THREE.Mesh(createCanalWall(z => cX(z) +  9.8, 0.0, 2.4, 80), concreteMat));
+    // Outer retaining face — visible drop from raised land down to street level
+    scene.add(new THREE.Mesh(createCanalWall(z => cX(z) - 17, 0.0, 2.4, 80), concreteMat));
+    scene.add(new THREE.Mesh(createCanalWall(z => cX(z) + 17, 0.0, 2.4, 80), concreteMat));
 
     // Canal floor (concrete / mud, partially visible through water)
     scene.add(new THREE.Mesh(
@@ -636,12 +632,12 @@ export default function ARDimensionScreen({ navigation }) {
         const th = 2.4 + Math.random() * 2.2;
         const cr = 0.72 + Math.random() * 0.48;
         const trk = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.15, th, 6), trkMat);
-        trk.position.set(tx, th / 2, tz);
+        trk.position.set(tx, 2.4 + th / 2, tz);
         const crn = new THREE.Mesh(
           new THREE.SphereGeometry(cr, 7, 5),
           new THREE.MeshLambertMaterial({ color: treeCols[Math.floor(Math.random() * 6)] })
         );
-        crn.position.set(tx, th + cr * 0.65, tz);
+        crn.position.set(tx, 2.4 + th + cr * 0.65, tz);
         scene.add(trk, crn);
       });
     }
@@ -652,10 +648,10 @@ export default function ARDimensionScreen({ navigation }) {
     for (let bz = -228; bz <= 228; bz += 6) {
       const bcx = cX(bz);
       const bL = new THREE.Mesh(bollardGeo, bollardMat);
-      bL.position.set(bcx - 9.8, 2.77, bz);
+      bL.position.set(bcx - 7.5, 2.76, bz);
       scene.add(bL);
       const bR = new THREE.Mesh(bollardGeo, bollardMat);
-      bR.position.set(bcx + 9.8, 2.77, bz);
+      bR.position.set(bcx + 7.5, 2.76, bz);
       scene.add(bR);
     }
 
@@ -667,16 +663,16 @@ export default function ARDimensionScreen({ navigation }) {
     for (let lz = -225; lz <= 225; lz += 22) {
       const llx = cX(lz) - 12.5;
       const lpL = new THREE.Mesh(lpPoleGeo, lpPoleMat);
-      lpL.position.set(llx, 2.25, lz);
+      lpL.position.set(llx, 4.65, lz);
       const lhL = new THREE.Mesh(lpHeadGeo, lpHeadMat);
-      lhL.position.set(llx, 4.75, lz);
+      lhL.position.set(llx, 7.15, lz);
       scene.add(lpL, lhL);
 
       const rlx = cX(lz + 11) + 12.5;
       const lpR = new THREE.Mesh(lpPoleGeo, lpPoleMat);
-      lpR.position.set(rlx, 2.25, lz + 11);
+      lpR.position.set(rlx, 4.65, lz + 11);
       const lhR = new THREE.Mesh(lpHeadGeo, lpHeadMat);
-      lhR.position.set(rlx, 4.75, lz + 11);
+      lhR.position.set(rlx, 7.15, lz + 11);
       scene.add(lpR, lhR);
     }
 
@@ -729,7 +725,7 @@ export default function ARDimensionScreen({ navigation }) {
       sphere.position.y = 4.5;
       const grp = new THREE.Group();
       grp.add(beam, sphere);
-      grp.position.set(mx, 0, s.z);
+      grp.position.set(mx, 2.4, s.z);
       scene.add(grp);
       sensorMeshes.push(sphere);
     });
@@ -757,10 +753,10 @@ export default function ARDimensionScreen({ navigation }) {
       scene.add(b);
     });
 
-    // Bank hit planes (invisible, used for raycasting — covers the promenade)
+    // Bank hit planes (invisible, raised to land level — full bank width including ledge)
     const hitMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, side: THREE.DoubleSide });
-    const hitL = new THREE.Mesh(createRibbon(z => cX(z) - 17, z => cX(z) - 9.8, 60, 0), hitMat);
-    const hitR = new THREE.Mesh(createRibbon(z => cX(z) + 9.8, z => cX(z) + 17, 60, 0), hitMat.clone());
+    const hitL = new THREE.Mesh(createRibbon(z => cX(z) - 17, z => cX(z) - 7.5, 60, 2.4), hitMat);
+    const hitR = new THREE.Mesh(createRibbon(z => cX(z) + 7.5, z => cX(z) + 17, 60, 2.4), hitMat.clone());
     scene.add(hitL, hitR);
     hitPlanesRef.current = [hitL, hitR];
 
@@ -772,16 +768,16 @@ export default function ARDimensionScreen({ navigation }) {
       animIdRef.current = requestAnimationFrame(animate);
       t += 0.016;
 
-      // Camera follow — elevated canal view: above the walls, sees city surroundings
+      // Camera follow — elevated view above the raised bank
       const cam = camStateRef.current;
       camera.position.set(
         cX(cam.z) + Math.sin(cam.angleY) * 2,
-        3.5,
+        5.9,
         cam.z + 5
       );
       camera.lookAt(
         cX(cam.z - 22) + Math.sin(cam.angleY) * 16,
-        1.0,
+        3.4,
         cam.z - 22
       );
 
