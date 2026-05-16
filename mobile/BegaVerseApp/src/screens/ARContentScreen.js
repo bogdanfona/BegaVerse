@@ -1,15 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { 
-  StyleSheet, 
-  Text, 
-  View, 
-  Image, 
-  ScrollView, 
-  TouchableOpacity, 
-  Dimensions,
-  Animated,
-  Alert,
-  Platform
+import {
+  StyleSheet, Text, View, Image, ScrollView,
+  TouchableOpacity, Dimensions, Animated, Platform,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { captureRef } from 'react-native-view-shot';
@@ -17,10 +9,11 @@ import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Linking from 'expo-linking';
 import * as Speech from 'expo-speech';
+import { BegaColors, BegaCardShadow } from '../../constants/theme';
+import { useBegaNotify } from '../components/BegaNotification';
 
 const { width, height } = Dimensions.get('window');
 
-// Mock AR content data (in real app, this comes from backend based on QR code)
 const MOCK_AR_CONTENT = {
   'Podul Michelangelo': {
     title: 'Michelangelo Bridge',
@@ -30,9 +23,9 @@ const MOCK_AR_CONTENT = {
       'Built in 1901 during Habsburg Empire',
       'Named after Italian Renaissance artist',
       'Connects Fabric district to city center',
-      'Renovated in 2010 for modern traffic'
+      'Renovated in 2010 for modern traffic',
     ],
-    story: 'This historic bridge was constructed at the dawn of the 20th century, serving as a vital connection between the industrial Fabric district and the city center. The bridge witnessed the transformation of Timișoara from an industrial powerhouse to a modern European city.'
+    story: 'This historic bridge was constructed at the dawn of the 20th century, serving as a vital connection between the industrial Fabric district and the city center. The bridge witnessed the transformation of Timișoara from an industrial powerhouse to a modern European city.',
   },
   'Bega River Center': {
     title: 'Bega River Historic Center',
@@ -42,11 +35,11 @@ const MOCK_AR_CONTENT = {
       'Canal built in 1760 to prevent flooding',
       'Used for trade transport until 1950s',
       'Home to diverse aquatic ecosystem',
-      'UNESCO heritage site candidate'
+      'UNESCO heritage site candidate',
     ],
-    story: 'The Bega Canal was engineered in the 18th century to tame the wild Bega River. It became a crucial trade route, bringing prosperity to Timișoara. Today, it serves as a green corridor through the city.'
+    story: 'The Bega Canal was engineered in the 18th century to tame the wild Bega River. It became a crucial trade route, bringing prosperity to Timișoara. Today, it serves as a green corridor through the city.',
   },
-  'default': {
+  default: {
     title: 'Bega River Discovery',
     year: '2024',
     image: 'https://picsum.photos/400/600?random=3',
@@ -54,396 +47,248 @@ const MOCK_AR_CONTENT = {
       'Bega River spans 254 km through Romania',
       'Flows through Timișoara for 13 km',
       'Home to 15+ fish species',
-      'Part of Danube river basin'
+      'Part of Danube river basin',
     ],
-    story: 'The Bega River has been the lifeline of Timișoara for centuries. From a wild river to a regulated canal, it has shaped the city\'s history, economy, and culture.'
-  }
+    story: "The Bega River has been the lifeline of Timișoara for centuries. From a wild river to a regulated canal, it has shaped the city's history, economy, and culture.",
+  },
 };
 
 export default function ARContentScreen({ route, navigation }) {
+  const { showToast, showDialog } = useBegaNotify();
   const { qrData } = route.params || {};
-  const [imageLoaded, setImageLoaded] = useState(true);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const viewRef = useRef(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  
-  // Get content based on QR code data
   const content = MOCK_AR_CONTENT[qrData] || MOCK_AR_CONTENT['default'];
+
+  const fadeAnim  = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const viewRef   = useRef(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
     Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(slideAnim, {
-        toValue: 0,
-        tension: 50,
-        friction: 8,
-        useNativeDriver: true,
-      })
+      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+      Animated.spring(slideAnim, { toValue: 0, tension: 50, friction: 8, useNativeDriver: true }),
     ]).start();
   }, []);
 
-  // Cleanup speech on unmount
   useEffect(() => {
-    return () => {
-      if (isSpeaking) {
-        Speech.stop();
-      }
-    };
+    return () => { if (isSpeaking) Speech.stop(); };
   }, [isSpeaking]);
 
-  const handleActionPress = async (action) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    switch(action) {
-      case 'photo':
-        await takeARPhoto();
-        break;
-      case 'audio':
-        await playAudioGuide();
-        break;
-      case 'map':
-        await openInMap();
-        break;
+  // ── Photo ──────────────────────────────────────────────
+  const takeARPhoto = async () => {
+    try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const uri = await captureRef(viewRef, { format: 'png', quality: 1 });
+      const filename = `BegaVerse_${Date.now()}.png`;
+      const newUri   = `${FileSystem.documentDirectory}${filename}`;
+      await FileSystem.copyAsync({ from: uri, to: newUri });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      showDialog({
+        title: 'PHOTO CAPTURED',
+        message: 'Your AR photo is saved. What would you like to do?',
+        type: 'success',
+        buttons: [
+          { text: 'CLOSE', style: 'cancel' },
+          {
+            text: 'SHARE',
+            onPress: async () => {
+              try {
+                const canShare = await Sharing.isAvailableAsync();
+                if (canShare) {
+                  await Sharing.shareAsync(newUri, {
+                    mimeType: 'image/png',
+                    dialogTitle: 'Share BegaVerse AR Photo',
+                    UTI: 'public.png',
+                  });
+                } else {
+                  showToast('Sharing not available on this device.', 'warning');
+                }
+              } catch {
+                showToast('Could not share photo.', 'error');
+              }
+            },
+          },
+        ],
+      });
+    } catch (error) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      showDialog({
+        title: 'CAPTURE FAILED',
+        message: error.message,
+        type: 'error',
+        buttons: [{ text: 'OK' }],
+      });
     }
   };
 
-  // 📸 Take AR Photo (Proper Implementation - Actually Saves)
-  const takeARPhoto = async () => {
-  try {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-    // Capture the screen
-    const uri = await captureRef(viewRef, {
-      format: 'png',
-      quality: 1,
-    });
-
-    // Create filename with timestamp
-    const filename = `BegaVerse_${Date.now()}.png`;
-    const newUri = `${FileSystem.documentDirectory}${filename}`;
-
-    // Move to permanent location
-    await FileSystem.copyAsync({
-      from: uri,
-      to: newUri
-    });
-
-    // Success feedback
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    // Ask user what to do with photo
-    Alert.alert(
-      '✅ Photo Captured!',
-      'Your AR photo is ready! What would you like to do?',
-      [
-        {
-          text: 'Share',
-          onPress: async () => {
-            try {
-              const canShare = await Sharing.isAvailableAsync();
-              if (canShare) {
-                await Sharing.shareAsync(newUri, {
-                  mimeType: 'image/png',
-                  dialogTitle: 'Share BegaVerse AR Photo',
-                  UTI: 'public.png'
-                });
-              } else {
-                Alert.alert('Sharing not available', 'Photo saved locally!');
-              }
-            } catch (shareError) {
-              console.error('Share error:', shareError);
-            }
-          }
-        },
-        {
-          text: 'OK',
-          style: 'default'
-        }
-      ]
-    );
-
-  } catch (error) {
-    console.error('Photo capture error:', error);
-    
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-    
-    Alert.alert(
-      '❌ Capture Failed',
-      `Could not capture photo: ${error.message}`,
-      [{ text: 'OK' }]
-    );
-  }
-};
-
-  // 🔊 Play Audio Guide (Text-to-Speech)
+  // ── Audio ──────────────────────────────────────────────
   const playAudioGuide = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-      // If already speaking, stop it
       if (isSpeaking) {
         Speech.stop();
         setIsSpeaking(false);
-        Alert.alert('🔇 Audio Stopped', 'Audio guide paused.');
+        showToast('Audio guide paused.', 'info');
         return;
       }
-
-      // Start speaking
       setIsSpeaking(true);
-      
-      Alert.alert(
-        '🔊 Audio Guide Playing',
-        `Narration for ${content.title} is now playing...\n\nTap the Audio button again to stop.`,
-        [{ text: 'Got it!', style: 'default' }]
-      );
+      showToast(`Now narrating: ${content.title}`, 'info');
 
-      const narration = `${content.title}. Established in ${content.year}. ${content.story}`;
-
-      Speech.speak(narration, {
-        language: 'en-US',
-        pitch: 1.0,
-        rate: 0.9,
+      Speech.speak(`${content.title}. Established in ${content.year}. ${content.story}`, {
+        language: 'en-US', pitch: 1.0, rate: 0.9,
         onDone: () => {
           setIsSpeaking(false);
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          Alert.alert(
-            '✅ Audio Complete',
-            'Narration finished!',
-            [{ text: 'OK' }]
-          );
+          showToast('Audio narration complete.', 'success');
         },
-        onStopped: () => {
+        onStopped: () => setIsSpeaking(false),
+        onError:   () => {
           setIsSpeaking(false);
+          showToast('Failed to play audio. Please try again.', 'error');
         },
-        onError: (error) => {
-          console.error('Speech error:', error);
-          setIsSpeaking(false);
-          Alert.alert('Error', 'Failed to play audio. Please try again.');
-        }
       });
-
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-    } catch (error) {
-      console.error('Audio playback error:', error);
+    } catch {
       setIsSpeaking(false);
-      Alert.alert(
-        'Error',
-        'Failed to play audio guide. Please try again.',
-        [{ text: 'OK' }]
-      );
+      showToast('Audio guide unavailable.', 'error');
     }
   };
 
-  // 🗺️ Open in Map
+  // ── Map ────────────────────────────────────────────────
   const openInMap = async () => {
     try {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
-      // Bega River coordinates (center of Timișoara)
-      const latitude = 45.7489;
-      const longitude = 21.2087;
-      
+      const lat   = 45.7489;
+      const lng   = 21.2087;
       const label = encodeURIComponent(content.title);
-      
-      // Different URL schemes for iOS and Android
-      const scheme = Platform.select({
-        ios: `maps:0,0?q=${label}@${latitude},${longitude}`,
-        android: `geo:0,0?q=${latitude},${longitude}(${label})`
+      const url   = Platform.select({
+        ios:     `maps:0,0?q=${label}@${lat},${lng}`,
+        android: `geo:0,0?q=${lat},${lng}(${label})`,
+        default: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`,
       });
 
-      const url = Platform.select({
-        ios: scheme,
-        android: scheme,
-        default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`
-      });
-
-      const supported = await Linking.canOpenURL(url);
-
-      if (supported) {
-        Alert.alert(
-          '🗺️ Open in Maps?',
-          `This will open ${content.title} location in your maps app.`,
-          [
-            { text: 'Cancel', style: 'cancel' },
-            { 
-              text: 'Open Maps', 
-              onPress: async () => {
+      showDialog({
+        title: 'OPEN IN MAPS',
+        message: `Navigate to ${content.title} in your maps app?`,
+        type: 'info',
+        buttons: [
+          { text: 'CANCEL', style: 'cancel' },
+          {
+            text: 'OPEN MAPS',
+            onPress: async () => {
+              const supported = await Linking.canOpenURL(url);
+              if (supported) {
                 await Linking.openURL(url);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              } else {
+                await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`);
               }
-            }
-          ]
-        );
-      } else {
-        await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`);
-      }
-    } catch (error) {
-      console.error('Map opening error:', error);
-      Alert.alert('Error', 'Failed to open maps. Please try again.');
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            },
+          },
+        ],
+      });
+    } catch {
+      showToast('Could not open maps.', 'error');
     }
   };
 
+  const ACTIONS = [
+    { key: 'photo', icon: '📸', label: 'AR PHOTO',   onPress: takeARPhoto },
+    { key: 'audio', icon: isSpeaking ? '🔇' : '🔊', label: isSpeaking ? 'STOP' : 'AUDIO', onPress: playAudioGuide },
+    { key: 'map',   icon: '🗺️', label: 'VIEW MAP',   onPress: openInMap },
+  ];
+
   return (
-    <Animated.View 
+    <Animated.View
       ref={viewRef}
       style={[styles.container, { opacity: fadeAnim }]}
       collapsable={false}
     >
-      {/* Background Image */}
+      {/* Background image */}
       <Image
         source={{ uri: content.image }}
-        style={styles.backgroundImage}
-        onLoad={() => setImageLoaded(true)}
-        onError={(error) => {
-          console.log('Image failed to load:', error);
-          setImageLoaded(true);
-        }}
+        style={styles.bgImage}
+        onError={() => {}}
       />
-      
-      {/* Overlay Gradient */}
-      <View style={styles.overlay} />
+      {/* Navy tint overlay */}
+      <View style={styles.bgOverlay} />
 
-      {/* Content */}
-      <ScrollView 
-        style={styles.scrollContainer}
-        contentContainerStyle={styles.scrollContent}
-      >
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+
         {/* Header */}
-        <Animated.View 
-          style={[
-            styles.header,
-            { transform: [{ translateY: slideAnim }] }
-          ]}
-        >
-          <View style={styles.titleContainer}>
-            <Text style={styles.arBadge}>🔍 AR VIEW</Text>
-            <Text style={styles.title}>{content.title}</Text>
-            <Text style={styles.year}>Est. {content.year}</Text>
+        <Animated.View style={[styles.header, { transform: [{ translateY: slideAnim }] }]}>
+          <View style={styles.arTag}>
+            <Text style={styles.arTagText}>[ AR · ACTIVE ]</Text>
+          </View>
+          <Text style={styles.title}>{content.title}</Text>
+          <Text style={styles.year}>EST. {content.year}</Text>
+        </Animated.View>
+
+        {/* Story card */}
+        <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+          <View style={styles.cardAccentCyan} />
+          <View style={styles.cardInner}>
+            <Text style={styles.cardLabel}>// HISTORICAL LOG</Text>
+            <Text style={styles.storyText}>{content.story}</Text>
           </View>
         </Animated.View>
 
-        {/* Story Card */}
-        <Animated.View 
-          style={[
-            styles.card,
-            { 
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }] 
-            }
-          ]}
-        >
-          <Text style={styles.cardTitle}>📜 Historical Story</Text>
-          <Text style={styles.storyText}>{content.story}</Text>
+        {/* Facts card */}
+        <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }]}>
+          <View style={[styles.cardAccentCyan, { backgroundColor: BegaColors.gold }]} />
+          <View style={styles.cardInner}>
+            <Text style={styles.cardLabel}>// DATA POINTS</Text>
+            {content.facts.map((fact, i) => (
+              <View key={i} style={styles.factRow}>
+                <Text style={styles.factBullet}>›</Text>
+                <Text style={styles.factText}>{fact}</Text>
+              </View>
+            ))}
+          </View>
         </Animated.View>
 
-        {/* Fun Facts */}
-        <Animated.View 
-          style={[
-            styles.card,
-            { 
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }] 
-            }
-          ]}
-        >
-          <Text style={styles.cardTitle}>💡 Fun Facts</Text>
-          {content.facts.map((fact, index) => (
-            <View key={index} style={styles.factItem}>
-              <Text style={styles.factBullet}>•</Text>
-              <Text style={styles.factText}>{fact}</Text>
-            </View>
+        {/* Actions */}
+        <Animated.View style={[styles.actionsRow, { opacity: fadeAnim }]}>
+          {ACTIONS.map(action => (
+            <TouchableOpacity
+              key={action.key}
+              style={[
+                styles.actionBtn,
+                action.key === 'audio' && isSpeaking && styles.actionBtnActive,
+              ]}
+              onPress={action.onPress}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.actionIcon}>{action.icon}</Text>
+              <Text style={styles.actionLabel}>{action.label}</Text>
+            </TouchableOpacity>
           ))}
         </Animated.View>
 
-        {/* Interactive Actions */}
-        <Animated.View 
-          style={[
-            styles.actionsCard,
-            { 
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }] 
-            }
-          ]}
-        >
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleActionPress('photo')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.actionIcon}>📸</Text>
-            <Text style={styles.actionText}>Take AR Photo</Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={[
-              styles.actionButton,
-              isSpeaking && styles.actionButtonActive
-            ]}
-            onPress={() => handleActionPress('audio')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.actionIcon}>{isSpeaking ? '🔇' : '🔊'}</Text>
-            <Text style={styles.actionText}>
-              {isSpeaking ? 'Stop Audio' : 'Audio Guide'}
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => handleActionPress('map')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.actionIcon}>🗺️</Text>
-            <Text style={styles.actionText}>View on Map</Text>
-          </TouchableOpacity>
+        {/* Discovery banner */}
+        <Animated.View style={[styles.discoveryBanner, { opacity: fadeAnim, transform: [{ scale: fadeAnim }] }]}>
+          <View style={styles.discoveryAccent} />
+          <View style={styles.discoveryInner}>
+            <Text style={styles.discoveryTag}>LOCATION UNLOCKED</Text>
+            <Text style={styles.discoveryXP}>+50 XP EARNED</Text>
+          </View>
         </Animated.View>
 
-        {/* Quest Complete */}
-        <Animated.View 
-          style={[
-            styles.questComplete,
-            { 
-              opacity: fadeAnim,
-              transform: [{ scale: fadeAnim }] 
-            }
-          ]}
-        >
-          <Text style={styles.questIcon}>🎉</Text>
-          <Text style={styles.questTitle}>Location Discovered!</Text>
-          <Text style={styles.questReward}>+50 XP Earned</Text>
-        </Animated.View>
-
-        {/* Spacer for bottom button */}
-        <View style={{ height: 100 }} />
+        <View style={{ height: 110 }} />
       </ScrollView>
 
-      {/* Close Button */}
-      <Animated.View
-        style={[
-          styles.closeButtonContainer,
-          { 
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }] 
-          }
-        ]}
-      >
-        <TouchableOpacity 
-          style={styles.closeButton}
+      {/* Close button */}
+      <Animated.View style={[styles.closeBtnWrap, { opacity: fadeAnim }]}>
+        <TouchableOpacity
+          style={styles.closeBtn}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
             navigation.goBack();
           }}
           activeOpacity={0.8}
         >
-          <Text style={styles.closeButtonText}>✕ Close AR View</Text>
+          <Text style={styles.closeBtnText}>✕ CLOSE AR VIEW</Text>
         </TouchableOpacity>
       </Animated.View>
     </Animated.View>
@@ -451,175 +296,98 @@ export default function ARContentScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
+  container: { flex: 1, backgroundColor: BegaColors.deep },
+
+  bgImage: {
+    position: 'absolute', width, height, opacity: 0.28,
   },
-  backgroundImage: {
-    position: 'absolute',
-    width: width,
-    height: height,
-    opacity: 0.4,
+  bgOverlay: {
+    position: 'absolute', width, height,
+    backgroundColor: 'rgba(3, 12, 24, 0.68)',
   },
-  overlay: {
-    position: 'absolute',
-    width: width,
-    height: height,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+
+  scroll: { flex: 1 },
+  scrollContent: { paddingTop: 64, paddingHorizontal: 20, paddingBottom: 20 },
+
+  // ── Header ──────────────────────────────────────────────
+  header: { alignItems: 'center', marginBottom: 24 },
+  arTag: {
+    borderWidth: 1, borderColor: BegaColors.cardBorderStrong,
+    borderRadius: 3, paddingHorizontal: 12, paddingVertical: 5, marginBottom: 16,
   },
-  scrollContainer: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  header: {
-    marginBottom: 20,
-  },
-  titleContainer: {
-    alignItems: 'center',
-  },
-  arBadge: {
-    backgroundColor: '#0077BE',
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 15,
-    overflow: 'hidden',
-  },
+  arTagText: { color: BegaColors.cyan, fontSize: 11, fontFamily: 'monospace', letterSpacing: 2 },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 5,
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    fontSize: 28, fontWeight: '800', color: BegaColors.textPrimary,
+    textAlign: 'center', letterSpacing: 0.5, marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.8)', textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 6,
   },
   year: {
-    fontSize: 16,
-    color: '#FFB74D',
-    fontWeight: 'bold',
+    fontSize: 13, color: BegaColors.gold, fontFamily: 'monospace', letterSpacing: 2,
   },
+
+  // ── Cards ────────────────────────────────────────────────
   card: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#0077BE',
-    marginBottom: 12,
-  },
-  storyText: {
-    fontSize: 15,
-    color: '#333',
-    lineHeight: 24,
-  },
-  factItem: {
     flexDirection: 'row',
-    marginBottom: 10,
+    backgroundColor: BegaColors.cardBg,
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderRadius: 4, marginBottom: 14, overflow: 'hidden',
+    ...BegaCardShadow,
   },
-  factBullet: {
-    fontSize: 18,
-    color: '#0077BE',
-    marginRight: 10,
-    fontWeight: 'bold',
+  cardAccentCyan: { width: 3, backgroundColor: BegaColors.cyan },
+  cardInner:      { flex: 1, padding: 18 },
+  cardLabel:      { fontSize: 10, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 2, marginBottom: 12 },
+  storyText:      { fontSize: 14, color: BegaColors.textPrimary, lineHeight: 22 },
+  factRow:        { flexDirection: 'row', marginBottom: 10 },
+  factBullet:     { fontSize: 16, color: BegaColors.cyan, marginRight: 10, fontWeight: '700' },
+  factText:       { flex: 1, fontSize: 13, color: BegaColors.textPrimary, lineHeight: 20 },
+
+  // ── Actions ─────────────────────────────────────────────
+  actionsRow:  { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 14 },
+  actionBtn: {
+    backgroundColor: BegaColors.cardBg,
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderRadius: 4, flex: 1, marginHorizontal: 4,
+    paddingVertical: 16, alignItems: 'center',
+    ...BegaCardShadow,
   },
-  factText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 20,
+  actionBtnActive: {
+    borderColor: BegaColors.cyan,
+    backgroundColor: 'rgba(36, 118, 181, 0.12)',
   },
-  actionsCard: {
+  actionIcon:  { fontSize: 26, marginBottom: 8 },
+  actionLabel: { fontSize: 9, color: BegaColors.cyan, fontFamily: 'monospace', letterSpacing: 1 },
+
+  // ── Discovery banner ─────────────────────────────────────
+  discoveryBanner: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 15,
+    backgroundColor: BegaColors.cardBg,
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderRadius: 4, overflow: 'hidden', marginBottom: 14,
+    ...BegaCardShadow,
   },
-  actionButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    borderRadius: 12,
-    padding: 15,
-    flex: 1,
-    marginHorizontal: 5,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
+  discoveryAccent: { width: 3, backgroundColor: BegaColors.green },
+  discoveryInner:  { flex: 1, padding: 18, alignItems: 'center' },
+  discoveryTag: {
+    fontSize: 12, fontWeight: '700', color: BegaColors.greenBright,
+    fontFamily: 'monospace', letterSpacing: 2, marginBottom: 6,
   },
-  actionButtonActive: {
-    backgroundColor: 'rgba(0, 119, 190, 0.2)',
-    borderWidth: 2,
-    borderColor: '#0077BE',
+  discoveryXP: {
+    fontSize: 18, fontWeight: '800', color: BegaColors.gold,
+    fontFamily: 'monospace', letterSpacing: 1,
   },
-  actionIcon: {
-    fontSize: 28,
-    marginBottom: 8,
+
+  // ── Close ────────────────────────────────────────────────
+  closeBtnWrap: {
+    position: 'absolute', bottom: 28, left: 20, right: 20,
   },
-  actionText: {
-    fontSize: 11,
-    color: '#0077BE',
-    fontWeight: 'bold',
-    textAlign: 'center',
+  closeBtn: {
+    borderWidth: 1, borderColor: BegaColors.cardBorderStrong,
+    backgroundColor: BegaColors.navy,
+    borderRadius: 4, padding: 18, alignItems: 'center',
+    ...BegaCardShadow,
   },
-  questComplete: {
-    backgroundColor: 'rgba(76, 175, 80, 0.95)',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  questIcon: {
-    fontSize: 48,
-    marginBottom: 10,
-  },
-  questTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 5,
-  },
-  questReward: {
-    fontSize: 16,
-    color: '#FFB74D',
-    fontWeight: 'bold',
-  },
-  closeButtonContainer: {
-    position: 'absolute',
-    bottom: 30,
-    left: 20,
-    right: 20,
-  },
-  closeButton: {
-    backgroundColor: '#0077BE',
-    padding: 18,
-    borderRadius: 30,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  closeButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+  closeBtnText: {
+    color: BegaColors.cyan, fontSize: 14, fontWeight: '700',
+    fontFamily: 'monospace', letterSpacing: 2,
   },
 });

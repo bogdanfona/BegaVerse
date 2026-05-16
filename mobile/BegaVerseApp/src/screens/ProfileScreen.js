@@ -1,445 +1,329 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import {
+  StyleSheet, Text, View, ScrollView,
+  TouchableOpacity, StatusBar,
+} from 'react-native';
 import { getTopUsers, updateUserScore, addXP } from '../services/leaderboardService';
 import * as Haptics from 'expo-haptics';
+import { BegaColors, BegaCardShadow } from '../../constants/theme';
+import { useBegaNotify } from '../components/BegaNotification';
 
 const MOCK_BADGES = [
   { id: 1, icon: '🌉', name: 'Bridge Explorer', earned: true },
-  { id: 2, icon: '🌿', name: 'Eco Warrior', earned: true },
-  { id: 3, icon: '📚', name: 'History Buff', earned: false },
-  { id: 4, icon: '⭐', name: 'Bega Legend', earned: false },
+  { id: 2, icon: '🌿', name: 'Eco Warrior',     earned: true },
+  { id: 3, icon: '📚', name: 'History Buff',    earned: false },
+  { id: 4, icon: '⭐', name: 'Bega Legend',     earned: false },
 ];
 
-// Current user ID (in real app, this comes from authentication)
 const CURRENT_USER_ID = 'user_bogdan';
 
+// ── Skeleton ─────────────────────────────────────────────
+function SkeletonLoader() {
+  return (
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={BegaColors.deep} />
+      <View style={styles.header}>
+        <View style={styles.skeletonAvatar} />
+        <View style={styles.skeletonLine} />
+        <View style={[styles.skeletonLine, { width: 100 }]} />
+      </View>
+      <View style={styles.content}>
+        {[1, 2, 3].map(i => (
+          <View key={i} style={[styles.card, { marginBottom: 12 }]}>
+            <View style={[styles.skeletonLine, { width: 120, marginBottom: 14 }]} />
+            <View style={[styles.skeletonBox, { marginBottom: 8 }]} />
+            <View style={styles.skeletonBox} />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function ProfileScreen({ navigation }) {
+  const { showToast } = useBegaNotify();
   const [leaderboard, setLeaderboard] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]         = useState(true);
   const [currentUser, setCurrentUser] = useState(null);
 
   useEffect(() => {
-    // Initialize current user if doesn't exist
     initializeUser();
-
-    // Listen to leaderboard changes
     const unsubscribe = getTopUsers(10, (users) => {
       setLeaderboard(users);
-      
-      // Find current user in leaderboard
       const user = users.find(u => u.id === CURRENT_USER_ID);
-      if (user) {
-        setCurrentUser(user);
-      }
-      
+      if (user) setCurrentUser(user);
       setLoading(false);
     });
-
-    // Cleanup listener
     return () => unsubscribe && unsubscribe();
   }, []);
 
   const initializeUser = async () => {
-    // Add current user to Firebase if not exists
     await updateUserScore(CURRENT_USER_ID, {
-      name: 'Bogdan Fona',
-      xp: 850,
-      level: 5,
-      avatar: '🧑',
+      name: 'Bogdan Fona', xp: 850, level: 5, avatar: '🧑',
     });
   };
 
   const handleAddXP = async () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
     const result = await addXP(CURRENT_USER_ID, 50);
     if (result.success) {
-      alert(`+50 XP! You now have ${result.newXP} XP (Level ${result.newLevel})`);
+      showToast(`+50 XP · Now at ${result.newXP} XP · Level ${result.newLevel}`, 'success');
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View style={styles.skeletonAvatar} />
-          <View style={styles.skeletonText} />
-          <View style={[styles.skeletonText, { width: 100 }]} />
-        </View>
-        
-        <View style={styles.content}>
-          <View style={styles.card}>
-            <View style={styles.skeletonTitle} />
-            <View style={styles.skeletonBox} />
-            <View style={styles.skeletonBox} />
-          </View>
-          
-          <View style={styles.card}>
-            <View style={styles.skeletonTitle} />
-            <View style={styles.skeletonBox} />
-            <View style={styles.skeletonBox} />
-            <View style={styles.skeletonBox} />
-          </View>
-          
-          <View style={styles.card}>
-            <View style={styles.skeletonTitle} />
-            <View style={styles.skeletonBox} />
-            <View style={styles.skeletonBox} />
-            <View style={styles.skeletonBox} />
-          </View>
-        </View>
-      </View>
-    );
-  }
+  if (loading) return <SkeletonLoader />;
+
+  const xp    = currentUser?.xp    || 850;
+  const level = currentUser?.level || 5;
+  const xpPct = (xp % 100);
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatar}>{currentUser?.avatar || '🧑'}</Text>
-        </View>
-        <Text style={styles.username}>{currentUser?.name || 'Bogdan Fona'}</Text>
-        <Text style={styles.level}>Level {currentUser?.level || 5} Explorer</Text>
-      </View>
+    <>
+      <StatusBar barStyle="light-content" backgroundColor={BegaColors.deep} />
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-      <View style={styles.content}>
-        {/* Stats Overview */}
-        <View style={styles.statsCard}>
-          <Text style={styles.sectionTitle}>Your Stats</Text>
-          <View style={styles.statsGrid}>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>{currentUser?.xp || 850}</Text>
-              <Text style={styles.statLabel}>Total XP</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>12</Text>
-              <Text style={styles.statLabel}>Quests Done</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>8</Text>
-              <Text style={styles.statLabel}>Locations</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>2</Text>
-              <Text style={styles.statLabel}>Badges</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.avatarRing}>
+            <Text style={styles.avatar}>{currentUser?.avatar || '🧑'}</Text>
+          </View>
+          <Text style={styles.username}>{currentUser?.name || 'Bogdan Fona'}</Text>
+          <View style={styles.levelBadge}>
+            <Text style={styles.levelText}>LVL {level} · EXPLORER</Text>
+          </View>
+          <View style={styles.headerDivider} />
+        </View>
+
+        <View style={styles.content}>
+
+          {/* Stats */}
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>// STATS OVERVIEW</Text>
+            <View style={styles.statsGrid}>
+              {[
+                { value: xp,   label: 'TOTAL XP' },
+                { value: 12,   label: 'QUESTS DONE' },
+                { value: 8,    label: 'LOCATIONS' },
+                { value: 2,    label: 'BADGES' },
+              ].map((s, i) => (
+                <View key={i} style={styles.statCell}>
+                  <Text style={styles.statValue}>{s.value}</Text>
+                  <Text style={styles.statLabel}>{s.label}</Text>
+                </View>
+              ))}
             </View>
           </View>
-        </View>
 
-        {/* XP Progress */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Level Progress</Text>
-          <View style={styles.xpContainer}>
-            <View style={styles.xpBar}>
-              <View style={[styles.xpFill, { width: `${((currentUser?.xp || 850) % 100)}%` }]} />
+          {/* XP Progress */}
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>// LEVEL PROGRESS</Text>
+            <View style={styles.xpTrack}>
+              <View style={[styles.xpFill, { width: `${xpPct}%` }]} />
             </View>
-            <Text style={styles.xpText}>
-              {currentUser?.xp || 850} / {((currentUser?.level || 5) * 100)} XP to Level {(currentUser?.level || 5) + 1}
+            <Text style={styles.xpInfo}>
+              {xp} / {level * 100} XP → Level {level + 1}
             </Text>
+            <TouchableOpacity style={styles.addXPBtn} onPress={handleAddXP} activeOpacity={0.8}>
+              <Text style={styles.addXPText}>+ ADD 50 XP (TEST)</Text>
+            </TouchableOpacity>
           </View>
-          
-          {/* Test Button */}
-          <TouchableOpacity 
-            style={styles.addXPButton} 
-            onPress={handleAddXP}
-          >
-            <Text style={styles.addXPText}>🎉 +50 XP (Test)</Text>
-          </TouchableOpacity>
-        </View>
 
-        {/* Badges */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>Badges</Text>
-          <View style={styles.badgesGrid}>
-            {MOCK_BADGES.map((badge) => (
+          {/* Badges */}
+          <View style={styles.card}>
+            <Text style={styles.sectionLabel}>// BADGES</Text>
+            <View style={styles.badgesGrid}>
+              {MOCK_BADGES.map(badge => (
+                <TouchableOpacity
+                  key={badge.id}
+                  style={[styles.badgeCell, !badge.earned && styles.badgeLocked]}
+                  onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.badgeIcon}>{badge.icon}</Text>
+                  <Text style={styles.badgeName}>{badge.name}</Text>
+                  {!badge.earned && <Text style={styles.badgeLockTag}>LOCKED</Text>}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
+          {/* Leaderboard */}
+          <View style={[styles.card, { borderLeftColor: BegaColors.gold }]}>
+            <View style={styles.leaderboardHeader}>
+              <Text style={styles.sectionLabel}>// LIVE LEADERBOARD</Text>
+              <View style={styles.livePill}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>LIVE</Text>
+              </View>
+            </View>
+
+            {leaderboard.map(user => (
               <TouchableOpacity
-                key={badge.id}
+                key={user.id}
                 style={[
-                  styles.badge,
-                  !badge.earned && styles.badgeLocked
+                  styles.leaderRow,
+                  user.id === CURRENT_USER_ID && styles.leaderRowActive,
                 ]}
                 onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-                activeOpacity={0.7}
+                activeOpacity={0.8}
               >
-                <Text style={styles.badgeIcon}>{badge.icon}</Text>
-                <Text style={styles.badgeName}>{badge.name}</Text>
+                <Text style={styles.rank}>#{user.rank}</Text>
+                <Text style={styles.userAvatar}>{user.avatar}</Text>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>
+                    {user.name}{user.id === CURRENT_USER_ID ? ' (You)' : ''}
+                  </Text>
+                  <Text style={styles.userLevel}>LVL {user.level}</Text>
+                </View>
+                <Text style={styles.userXP}>{user.xp} XP</Text>
               </TouchableOpacity>
             ))}
           </View>
-        </View>
 
-        {/* REAL-TIME LEADERBOARD */}
-        <View style={styles.card}>
-          <Text style={styles.sectionTitle}>🏆 Live Leaderboard</Text>
-          <Text style={styles.liveIndicator}>🔴 Live updates</Text>
-          
-          {leaderboard.map((user) => (
-            <TouchableOpacity
-              key={user.id}
-              style={[
-                styles.leaderboardItem,
-                user.id === CURRENT_USER_ID && styles.currentUserItem
-              ]}
-              onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.rank}>#{user.rank}</Text>
-              <Text style={styles.userAvatar}>{user.avatar}</Text>
-              <View style={styles.userInfo}>
-                <Text style={styles.userName}>
-                  {user.name} {user.id === CURRENT_USER_ID && '(You)'}
-                </Text>
-                <Text style={styles.userLevel}>Level {user.level}</Text>
-              </View>
-              <Text style={styles.userXP}>{user.xp} XP</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              navigation.goBack();
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.backButtonText}>← BACK TO HOME</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-            navigation.goBack();
-          }}
-        >
-          <Text style={styles.backButtonText}>← Back to Home</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+        </View>
+      </ScrollView>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F5F5',
-  },
+  container: { flex: 1, backgroundColor: BegaColors.deep },
+
+  // ── Header ──────────────────────────────────────────────
   header: {
-    backgroundColor: '#0077BE',
-    padding: 30,
+    backgroundColor: BegaColors.navy,
     paddingTop: 60,
+    paddingBottom: 24,
+    paddingHorizontal: 24,
     alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: BegaColors.cardBorder,
   },
-  avatarContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 15,
+  avatarRing: {
+    width: 84, height: 84, borderRadius: 42,
+    backgroundColor: BegaColors.blue,
+    borderWidth: 2, borderColor: BegaColors.cyan,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: 14,
   },
-  avatar: {
-    fontSize: 40,
+  avatar:   { fontSize: 40 },
+  username: { fontSize: 22, fontWeight: '700', color: BegaColors.textPrimary, letterSpacing: 0.5, marginBottom: 10 },
+  levelBadge: {
+    backgroundColor: 'rgba(36, 118, 181, 0.12)',
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderRadius: 3, paddingHorizontal: 12, paddingVertical: 5,
   },
-  username: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 5,
-  },
-  level: {
-    fontSize: 14,
-    color: '#FFB74D',
-  },
-  content: {
-    padding: 20,
-  },
+  levelText: { color: BegaColors.cyan, fontSize: 10, fontFamily: 'monospace', letterSpacing: 1.5 },
+  headerDivider: { height: 1, backgroundColor: BegaColors.cardBorder, marginTop: 20, width: '100%' },
+
+  // ── Content ─────────────────────────────────────────────
+  content: { padding: 20 },
+
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: BegaColors.cardBg,
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderLeftWidth: 3, borderLeftColor: BegaColors.cyan,
+    borderRadius: 4, padding: 18, marginBottom: 14,
+    ...BegaCardShadow,
   },
-  statsCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+  sectionLabel: {
+    fontSize: 10, color: BegaColors.textMuted,
+    fontFamily: 'monospace', letterSpacing: 2, marginBottom: 14,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
+
+  // Stats grid
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  statCell: {
+    width: '48%', backgroundColor: BegaColors.blue,
+    borderRadius: 3, padding: 14, marginBottom: 10, alignItems: 'center',
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
   },
-  liveIndicator: {
-    fontSize: 12,
-    color: '#4CAF50',
-    marginBottom: 10,
-    fontWeight: 'bold',
+  statValue: { fontSize: 22, fontWeight: '700', color: BegaColors.cyan, fontFamily: 'monospace' },
+  statLabel: { fontSize: 9, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 1.5, marginTop: 4 },
+
+  // XP
+  xpTrack: {
+    height: 4, backgroundColor: BegaColors.blue,
+    borderRadius: 2, overflow: 'hidden', marginBottom: 10,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  xpFill:  { height: '100%', backgroundColor: BegaColors.cyan, borderRadius: 2 },
+  xpInfo:  { fontSize: 11, color: BegaColors.textMuted, fontFamily: 'monospace', textAlign: 'center', marginBottom: 16 },
+  addXPBtn: {
+    backgroundColor: BegaColors.cyan, borderRadius: 3, padding: 12, alignItems: 'center',
   },
-  statItem: {
-    width: '48%',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 10,
-    alignItems: 'center',
+  addXPText: { color: '#fff', fontSize: 11, fontWeight: '700', fontFamily: 'monospace', letterSpacing: 1 },
+
+  // Badges
+  badgesGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  badgeCell: {
+    width: '48%', backgroundColor: BegaColors.blue,
+    borderRadius: 3, padding: 14, marginBottom: 10, alignItems: 'center',
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
   },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#0077BE',
+  badgeLocked: { opacity: 0.3 },
+  badgeIcon:   { fontSize: 36, marginBottom: 8 },
+  badgeName:   { fontSize: 11, color: BegaColors.textMuted, textAlign: 'center', fontFamily: 'monospace' },
+  badgeLockTag: { fontSize: 9, color: BegaColors.coral, fontFamily: 'monospace', letterSpacing: 1, marginTop: 4 },
+
+  // Leaderboard
+  leaderboardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
+  livePill: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(102, 187, 106, 0.12)',
+    borderWidth: 1, borderColor: 'rgba(102, 187, 106, 0.35)',
+    borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3,
   },
-  statLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 5,
+  liveDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: BegaColors.greenBright, marginRight: 5 },
+  liveText: { color: BegaColors.greenBright, fontSize: 9, fontFamily: 'monospace', letterSpacing: 1 },
+
+  leaderRow: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: BegaColors.blue,
+    borderRadius: 3, padding: 12, marginBottom: 6,
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
   },
-  xpContainer: {
-    marginTop: 10,
+  leaderRowActive: {
+    borderColor: BegaColors.cyan,
+    backgroundColor: 'rgba(36, 118, 181, 0.12)',
   },
-  xpBar: {
-    height: 12,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 6,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  xpFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-  },
-  xpText: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
-  addXPButton: {
-    backgroundColor: '#4CAF50',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 15,
-    alignItems: 'center',
-  },
-  addXPText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
-  badgesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  badge: {
-    width: '48%',
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    padding: 15,
-    marginBottom: 10,
-    alignItems: 'center',
-  },
-  badgeLocked: {
-    opacity: 0.4,
-  },
-  badgeIcon: {
-    fontSize: 40,
-    marginBottom: 8,
-  },
-  badgeName: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
-  leaderboardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  currentUserItem: {
-    backgroundColor: '#E3F2FD',
-    borderWidth: 2,
-    borderColor: '#0077BE',
-  },
-  rank: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#0077BE',
-    width: 40,
-  },
-  userAvatar: {
-    fontSize: 30,
-    marginRight: 10,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  userName: {
-    fontSize: 16,
-    color: '#333',
-    fontWeight: 'bold',
-  },
-  userLevel: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 2,
-  },
-  userXP: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-  },
+  rank:       { fontSize: 13, fontWeight: '700', color: BegaColors.cyan, fontFamily: 'monospace', width: 36 },
+  userAvatar: { fontSize: 26, marginRight: 10 },
+  userInfo:   { flex: 1 },
+  userName:   { fontSize: 14, color: BegaColors.textPrimary, fontWeight: '600' },
+  userLevel:  { fontSize: 10, color: BegaColors.textMuted, fontFamily: 'monospace', marginTop: 2 },
+  userXP:     { fontSize: 12, fontWeight: '700', color: BegaColors.greenBright, fontFamily: 'monospace' },
+
+  // Back
   backButton: {
-    marginTop: 10,
-    padding: 15,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
+    marginTop: 8, borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderRadius: 4, padding: 14, alignItems: 'center',
   },
-  backButtonText: {
-    fontSize: 16,
-    color: '#666',
-  },
-  // Skeleton Loading Styles
+  backButtonText: { fontSize: 11, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 1.5 },
+
+  // Skeleton
   skeletonAvatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    marginBottom: 15,
+    width: 84, height: 84, borderRadius: 42,
+    backgroundColor: 'rgba(36, 118, 181, 0.15)', marginBottom: 14,
   },
-  skeletonText: {
-    width: 150,
-    height: 20,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 4,
-    marginBottom: 8,
-  },
-  skeletonTitle: {
-    width: 120,
-    height: 18,
-    backgroundColor: '#E0E0E0',
-    borderRadius: 4,
-    marginBottom: 15,
+  skeletonLine: {
+    width: 150, height: 16,
+    backgroundColor: 'rgba(36, 118, 181, 0.12)',
+    borderRadius: 3, marginBottom: 8,
   },
   skeletonBox: {
-    width: '100%',
-    height: 60,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 8,
-    marginBottom: 10,
+    width: '100%', height: 56,
+    backgroundColor: BegaColors.blue,
+    borderRadius: 3,
   },
 });
