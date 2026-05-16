@@ -31,6 +31,7 @@ function navigate(page) {
   if (page === 'simcity') setTimeout(initBega3D, 50);
   if (page === 'history') attachEraListeners();
   if (page === 'sensors') startLiveSensorSim();
+  if (page === 'quests')  setTimeout(loadQuestsPage, 50);
 
   closeSidebar();
 }
@@ -796,7 +797,84 @@ function initBega3D() {
   };
 }
 
-// ——— INIT ———
+// ——— QUESTS PAGE ───────────────────────────────────────────────────────────
+
+const QUEST_USER_ID = 'user_bogdan';
+
+async function loadQuestsPage() {
+  try {
+    const [defs, progress, balance] = await Promise.all([
+      BegaFirebase.fetchQuestDefinitions(),
+      BegaFirebase.fetchUserQuestProgress(QUEST_USER_ID),
+      BegaFirebase.fetchWalletBalance(QUEST_USER_ID),
+    ]);
+
+    // Update wallet
+    const walletEl = document.getElementById('wallet-pts');
+    if (walletEl) walletEl.textContent = Number(balance).toLocaleString();
+
+    // Compute stats
+    let active = 0, done = 0, ptsEarned = 0;
+    defs.forEach(q => {
+      const p = progress[q.id];
+      if (p && p.completed) { done++; ptsEarned += q.reward; }
+      else if (p && p.progress > 0) active++;
+    });
+    const setEl = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    setEl('stat-active', active);
+    setEl('stat-done', done);
+    setEl('stat-pts-earned', ptsEarned.toLocaleString());
+
+    // Render quest list
+    const list = document.getElementById('quest-list');
+    if (!list) return;
+
+    if (defs.length === 0) {
+      list.innerHTML = '<div class="alert alert-info"><div class="alert-icon">ℹ️</div><div>No quests found in Firebase yet. Open the mobile app first to seed the quest definitions.</div></div>';
+      return;
+    }
+
+    list.innerHTML = defs.map(q => {
+      const p        = progress[q.id] || {};
+      const current  = p.progress || 0;
+      const completed = p.completed || false;
+      const pct      = Math.min((current / q.maxProgress) * 100, 100).toFixed(1);
+      const barColor = completed ? '#66BB6A' : '#2476B5';
+      const accentColor = completed ? '#66BB6A' : '#C08420';
+
+      return `<div class="card" style="border-left:3px solid ${accentColor};margin-bottom:12px;padding:18px;">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;">
+          <span style="font-size:1.8rem;">${q.icon || '🎯'}</span>
+          <div style="flex:1;">
+            <div style="font-size:0.98rem;font-weight:600;color:#e8f4fd;margin-bottom:2px;">${q.title}</div>
+            <div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(232,244,253,0.35);letter-spacing:1.5px;">${(q.category || '').toUpperCase()}</div>
+          </div>
+          <div style="font-family:var(--font-mono);font-size:0.72rem;font-weight:700;color:${completed ? '#66BB6A' : '#C08420'};
+            background:${completed ? 'rgba(102,187,106,0.1)' : 'rgba(192,132,32,0.1)'};
+            border:1px solid ${completed ? 'rgba(102,187,106,0.35)' : 'rgba(192,132,32,0.35)'};
+            padding:4px 10px;border-radius:3px;white-space:nowrap;">
+            ${completed ? '✓ DONE' : '+' + q.reward + ' PTS'}
+          </div>
+        </div>
+        <div style="font-size:0.84rem;color:rgba(232,244,253,0.5);margin-bottom:14px;line-height:1.5;">${q.description}</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="flex:1;height:3px;background:rgba(36,118,181,0.3);border-radius:2px;overflow:hidden;">
+            <div style="width:${pct}%;height:100%;background:${barColor};border-radius:2px;transition:width 0.6s;"></div>
+          </div>
+          <span style="font-family:var(--font-mono);font-size:0.72rem;color:rgba(232,244,253,0.4);">${current}/${q.maxProgress}</span>
+        </div>
+        ${completed ? `<div style="margin-top:12px;background:rgba(102,187,106,0.07);border:1px solid rgba(102,187,106,0.2);border-radius:3px;padding:8px 12px;text-align:center;font-family:var(--font-mono);font-size:0.72rem;color:#66BB6A;letter-spacing:1px;">QUEST COMPLETE · ${q.reward} PTS EARNED</div>` : ''}
+      </div>`;
+    }).join('');
+
+  } catch (err) {
+    console.error('loadQuestsPage error:', err);
+    const list = document.getElementById('quest-list');
+    if (list) list.innerHTML = '<div class="alert" style="border-color:#EF535040;"><div class="alert-icon">⚠️</div><div>Could not load quests from Firebase. Check console for details.</div></div>';
+  }
+}
+
+// ——— INIT ───────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
   window.onerror = (msg, src, line, col, err) => {

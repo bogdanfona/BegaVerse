@@ -865,5 +865,64 @@ const Pages = {
         </div>
       </div>
     </div>`;
-  }
+  },
+
+  // ── Quests & Wallet ─────────────────────────────────────────────────────────
+  quests() {
+    return `<div style="padding:24px 28px;max-width:900px;">
+      <div class="page-header" style="margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;">
+          <div class="badge badge-online" style="display:inline-flex;align-items:center;gap:6px;">
+            <span class="pulse-dot" style="width:6px;height:6px;flex-shrink:0;"></span>LIVE SYNC
+          </div>
+          <span style="font-family:var(--font-mono);font-size:0.65rem;color:rgba(79,195,247,0.4);letter-spacing:1px;">FIREBASE · REALTIME DB</span>
+        </div>
+        <h1 class="page-title">MISSION <span style="color:var(--bega-cyan);">BOARD</span></h1>
+        <p style="font-family:var(--font-mono);font-size:0.72rem;color:rgba(232,244,253,0.4);letter-spacing:1.5px;margin-top:4px;">
+          Same quests &amp; points across web and mobile — synced live
+        </p>
+      </div>
+
+      <!-- Wallet + stats strip -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:28px;">
+        <div class="card" id="wallet-card" style="border-left:3px solid #C08420;padding:20px;text-align:center;">
+          <div class="card-label" style="margin-bottom:8px;">WALLET BALANCE</div>
+          <div id="wallet-pts" style="font-family:var(--font-mono);font-size:2rem;font-weight:700;color:#C08420;">—</div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(232,244,253,0.35);letter-spacing:2px;margin-top:4px;">POINTS</div>
+        </div>
+        <div class="card" style="padding:20px;text-align:center;">
+          <div class="card-label" style="margin-bottom:8px;">ACTIVE</div>
+          <div id="stat-active" style="font-family:var(--font-mono);font-size:2rem;font-weight:700;color:var(--bega-cyan);">—</div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(232,244,253,0.35);letter-spacing:2px;margin-top:4px;">QUESTS</div>
+        </div>
+        <div class="card" style="padding:20px;text-align:center;">
+          <div class="card-label" style="margin-bottom:8px;">COMPLETED</div>
+          <div id="stat-done" style="font-family:var(--font-mono);font-size:2rem;font-weight:700;color:#66BB6A;">—</div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(232,244,253,0.35);letter-spacing:2px;margin-top:4px;">QUESTS</div>
+        </div>
+        <div class="card" style="padding:20px;text-align:center;">
+          <div class="card-label" style="margin-bottom:8px;">PTS EARNED</div>
+          <div id="stat-pts-earned" style="font-family:var(--font-mono);font-size:2rem;font-weight:700;color:#C08420;">—</div>
+          <div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(232,244,253,0.35);letter-spacing:2px;margin-top:4px;">FROM QUESTS</div>
+        </div>
+      </div>
+
+      <!-- Quest list -->
+      <div class="section-title">// MISSION LIST</div>
+      <div id="quest-list">
+        <div style="text-align:center;padding:48px 0;">
+          <div style="font-family:var(--font-mono);font-size:0.78rem;color:rgba(79,195,247,0.5);letter-spacing:2px;">SYNCING WITH FIREBASE...</div>
+        </div>
+      </div>
+
+      <!-- Info banner -->
+      <div class="alert alert-info" style="margin-top:8px;">
+        <div class="alert-icon">🔗</div>
+        <div>
+          Quest progress and wallet balance are stored in Firebase Realtime DB and shared between the mobile app and this web dashboard.
+          When your teammate's backend is ready, only <code>src/services/firebaseWeb.js</code> needs updating.
+        </div>
+      </div>
+    </div>`;
+  },
 };
