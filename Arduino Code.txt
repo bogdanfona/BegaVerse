@@ -13,14 +13,13 @@ void setup() {
 }
 
 void loop() {
-  // Citim senzorul de aer (dureaza cam 2 secunde)
   float umiditate = dht.readHumidity();
   float temperatura = dht.readTemperature();
 
-  // Citim senzorul de apa
+ 
   int nivelApa = analogRead(waterPin);
 
-  // Verificam daca senzorul de aer a raspuns corect
+ 
   if (isnan(umiditate) || isnan(temperatura)) {
     Serial.println("Eroare la citirea senzorului DHT11!");
   } else {
