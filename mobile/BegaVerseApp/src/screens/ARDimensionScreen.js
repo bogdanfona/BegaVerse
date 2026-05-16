@@ -202,7 +202,7 @@ function createRibbon(leftFn, rightFn, segs, y) {
     uvs.push(0, t, 1, t);
     if (i < segs) {
       const b = i * 2;
-      idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2);
+      idx.push(b, b + 2, b + 1, b + 1, b + 2, b + 3);
     }
   }
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
@@ -550,15 +550,15 @@ export default function ARDimensionScreen({ navigation }) {
     const cTex = concreteTex();    cTex.repeat.set(4, 50);
     const wTex = wetConcreteTex(); wTex.repeat.set(3, 35);
 
-    // Grass ground (wide, outside the promenade) — raised to wall-top level
+    // Full raised bank — all green grass from canal wall edge out to embankment edge
     const grassMat = new THREE.MeshLambertMaterial({ map: gTex });
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 42, z => cX(z) - 17, 80, 2.4), grassMat));
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) + 17, z => cX(z) + 42, 80, 2.4), grassMat));
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 42, z => cX(z) - 7.5, 80, 2.4), grassMat));
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) +  7.5, z => cX(z) + 42, 80, 2.4), grassMat));
 
-    // Promenade — flush with the top of the canal retaining walls
-    const promMat = new THREE.MeshLambertMaterial({ map: aTex });
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 17, z => cX(z) - 7.5, 80, 2.4), promMat));
-    scene.add(new THREE.Mesh(createRibbon(z => cX(z) +  7.5, z => cX(z) + 17, 80, 2.4), promMat));
+    // Street-level ground at Y=0 — makes the embankment look solid, not floating
+    const streetMat = new THREE.MeshLambertMaterial({ map: aTex });
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) - 55, z => cX(z) - 17, 80, 0.0), streetMat));
+    scene.add(new THREE.Mesh(createRibbon(z => cX(z) + 17, z => cX(z) + 55, 80, 0.0), streetMat));
 
     // ── Concrete canal walls (Bega-style retaining walls) ─────────────
     // The Bega canal has vertical concrete walls rising ~2.5 m above water.

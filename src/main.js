@@ -57,8 +57,11 @@ function startLiveSensorSim() {
       s.turbidity   = Math.max(1,   Math.round(s.turbidity   + (Math.random() - 0.5) * 2));
       s.temperature = Math.max(10,  Math.min(30, +((s.temperature + (Math.random() - 0.5) * 0.2 ).toFixed(1))));
       s.oxygen      = Math.max(4,   Math.min(12, +((s.oxygen      + (Math.random() - 0.5) * 0.1 ).toFixed(1))));
+      s.waterLevel  = Math.max(50,  Math.min(280, Math.round(s.waterLevel + (Math.random() - 0.5) * 3)));
       if (s.history.length >= 12) s.history.shift();
       s.history.push(s.ph);
+      if (s.waterLevelHistory.length >= 12) s.waterLevelHistory.shift();
+      s.waterLevelHistory.push(s.waterLevel);
     });
 
     updateSensorDOMValues();
@@ -77,13 +80,34 @@ function setMetricDOM(sensorId, metric, displayVal, cls, pct) {
 }
 
 function updateSensorDOMValues() {
+  var maxWL = 0;
   MOCK_DATA.sensors.forEach(s => {
     if (s.status === 'offline') return;
     setMetricDOM(s.id, 'ph',          String(s.ph),          s.ph > 7 ? 'good' : s.ph > 6.5 ? 'warning' : 'danger',                              (s.ph / 14 * 100).toFixed(1));
     setMetricDOM(s.id, 'turbidity',   s.turbidity + ' NTU',  s.turbidity < 20 ? 'good' : s.turbidity < 40 ? 'warning' : 'danger',               Math.min(s.turbidity / 80 * 100, 100).toFixed(1));
     setMetricDOM(s.id, 'temperature', s.temperature + '°C',  (s.temperature >= 10 && s.temperature <= 22) ? 'good' : s.temperature <= 26 ? 'warning' : 'danger', Math.min(s.temperature / 35 * 100, 100).toFixed(1));
     setMetricDOM(s.id, 'oxygen',      s.oxygen + ' mg/L',    s.oxygen >= 7 ? 'good' : s.oxygen >= 5 ? 'warning' : 'danger',                     Math.min(s.oxygen / 12 * 100, 100).toFixed(1));
+    setMetricDOM(s.id, 'waterLevel',  s.waterLevel + ' cm',  s.waterLevel < 180 ? 'good' : s.waterLevel < 220 ? 'warning' : 'danger',           Math.min(s.waterLevel / 300 * 100, 100).toFixed(1));
+
+    // Update water level overview gauge bars
+    const wlBar = document.getElementById('wl-bar-' + s.id);
+    const wlVal = document.getElementById('wl-val-' + s.id);
+    const wlColor = s.waterLevel < 180 ? '#66BB6A' : s.waterLevel < 220 ? '#FFA726' : '#EF5350';
+    if (wlBar) { wlBar.style.width = Math.min(s.waterLevel / 300 * 100, 100).toFixed(1) + '%'; wlBar.style.background = wlColor; }
+    if (wlVal) { wlVal.textContent = s.waterLevel + ' cm'; wlVal.style.color = wlColor; }
+
+    if (s.waterLevel > maxWL) maxWL = s.waterLevel;
   });
+
+  // Update the aggregate water level display
+  const activeSensors = MOCK_DATA.sensors.filter(s => s.status !== 'offline');
+  const avgWL = activeSensors.length ? Math.round(activeSensors.reduce((a, s) => a + s.waterLevel, 0) / activeSensors.length) : 0;
+  const wlStatusColor = maxWL >= 220 ? '#EF5350' : maxWL >= 180 ? '#FFA726' : '#66BB6A';
+  const wlStatusText  = maxWL >= 220 ? 'FLOOD RISK' : maxWL >= 180 ? 'ELEVATED' : 'NORMAL';
+  const avgEl  = document.getElementById('wl-avg-display');
+  const badgeEl = document.getElementById('wl-status-badge');
+  if (avgEl)  { avgEl.textContent = avgWL + ' cm'; avgEl.style.color = wlStatusColor; }
+  if (badgeEl){ badgeEl.textContent = wlStatusText; badgeEl.style.color = wlStatusColor; badgeEl.style.borderColor = wlStatusColor + '80'; }
 }
 
 // ——— MOBILE SIDEBAR ———

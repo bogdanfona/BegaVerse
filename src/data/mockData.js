@@ -8,20 +8,24 @@ const MOCK_DATA = {
   // IoT Sensor readings (50 sensors planned, 1 live for MVP)
   sensors: [
     { id: 'S001', name: 'Podul Decebal', lat: 45.7489, lon: 21.2087, status: 'online',
-      ph: 7.2, turbidity: 12, temperature: 18.4, oxygen: 8.6,
-      history: [7.1, 7.2, 7.0, 7.3, 7.2, 7.1, 7.2, 7.3, 7.2, 7.1, 7.2, 7.4] },
+      ph: 7.2, turbidity: 12, temperature: 18.4, oxygen: 8.6, waterLevel: 142,
+      history: [7.1, 7.2, 7.0, 7.3, 7.2, 7.1, 7.2, 7.3, 7.2, 7.1, 7.2, 7.4],
+      waterLevelHistory: [138, 140, 141, 143, 142, 140, 141, 143, 144, 142, 141, 142] },
     { id: 'S002', name: 'Podul Michelangelo', lat: 45.7501, lon: 21.2150, status: 'online',
-      ph: 6.9, turbidity: 18, temperature: 17.8, oxygen: 7.9,
-      history: [6.8, 6.9, 7.0, 6.9, 6.8, 6.9, 7.0, 6.9, 6.8, 7.0, 6.9, 6.9] },
+      ph: 6.9, turbidity: 18, temperature: 17.8, oxygen: 7.9, waterLevel: 138,
+      history: [6.8, 6.9, 7.0, 6.9, 6.8, 6.9, 7.0, 6.9, 6.8, 7.0, 6.9, 6.9],
+      waterLevelHistory: [135, 136, 137, 138, 137, 136, 138, 139, 138, 137, 138, 138] },
     { id: 'S003', name: 'Podul Eroilor', lat: 45.7521, lon: 21.2210, status: 'warning',
-      ph: 6.5, turbidity: 34, temperature: 19.1, oxygen: 6.2,
-      history: [7.0, 6.9, 6.8, 6.6, 6.5, 6.5, 6.6, 6.5, 6.4, 6.5, 6.5, 6.5] },
+      ph: 6.5, turbidity: 34, temperature: 19.1, oxygen: 6.2, waterLevel: 189,
+      history: [7.0, 6.9, 6.8, 6.6, 6.5, 6.5, 6.6, 6.5, 6.4, 6.5, 6.5, 6.5],
+      waterLevelHistory: [155, 160, 165, 170, 175, 178, 180, 183, 185, 187, 188, 189] },
     { id: 'S004', name: 'Parcul Rozelor', lat: 45.7535, lon: 21.2270, status: 'online',
-      ph: 7.4, turbidity: 8, temperature: 17.2, oxygen: 9.1,
-      history: [7.4, 7.3, 7.4, 7.5, 7.4, 7.4, 7.3, 7.4, 7.5, 7.4, 7.4, 7.5] },
+      ph: 7.4, turbidity: 8, temperature: 17.2, oxygen: 9.1, waterLevel: 129,
+      history: [7.4, 7.3, 7.4, 7.5, 7.4, 7.4, 7.3, 7.4, 7.5, 7.4, 7.4, 7.5],
+      waterLevelHistory: [128, 129, 128, 130, 129, 128, 129, 130, 129, 128, 129, 129] },
     { id: 'S005', name: 'Zona Industrială', lat: 45.7475, lon: 21.2020, status: 'offline',
-      ph: 0, turbidity: 0, temperature: 0, oxygen: 0,
-      history: [] }
+      ph: 0, turbidity: 0, temperature: 0, oxygen: 0, waterLevel: 0,
+      history: [], waterLevelHistory: [] }
   ],
 
   // QR-linked historical eras

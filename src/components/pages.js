@@ -7,6 +7,7 @@ function sensorColor(metric, val) {
   if (metric === 'turbidity')   return val < 20   ? '#66BB6A' : val < 40   ? '#FFA726' : '#EF5350';
   if (metric === 'temperature') return (val >= 10 && val <= 22) ? '#66BB6A' : val <= 26 ? '#FFA726' : '#EF5350';
   if (metric === 'oxygen')      return val >= 7   ? '#66BB6A' : val >= 5   ? '#FFA726' : '#EF5350';
+  if (metric === 'waterLevel')  return val < 180  ? '#66BB6A' : val < 220  ? '#FFA726' : '#EF5350';
   return '#4FC3F7';
 }
 
@@ -15,6 +16,7 @@ function sensorClass(metric, val) {
   if (metric === 'turbidity')   return val < 20   ? 'good' : val < 40   ? 'warning' : 'danger';
   if (metric === 'temperature') return (val >= 10 && val <= 22) ? 'good' : val <= 26 ? 'warning' : 'danger';
   if (metric === 'oxygen')      return val >= 7   ? 'good' : val >= 5   ? 'warning' : 'danger';
+  if (metric === 'waterLevel')  return val < 180  ? 'good' : val < 220  ? 'warning' : 'danger';
   return 'good';
 }
 
@@ -88,6 +90,18 @@ function renderSensorCard(s) {
         '<div class="sdc-metric-value" id="val-' + sId + '-oxygen">' + s.oxygen + ' mg/L</div>' +
         '<div class="sdc-metric-status ' + o2Cls + '">' + o2Lbl + '</div>' +
       '</div>' +
+      (function() {
+        var wl    = s.waterLevel || 0;
+        var wlCls = sensorClass('waterLevel', wl);
+        var wlPct = Math.min(wl / 300 * 100, 100).toFixed(1);
+        var wlLbl = wl < 180 ? 'Normal' : wl < 220 ? 'Elevated' : 'FLOOD RISK';
+        return '<div class="sdc-metric-row" style="border-top:1px solid rgba(79,195,247,0.08);margin-top:6px;padding-top:6px;">' +
+          '<div class="sdc-metric-label" style="color:#4FC3F7;">&#x2248;W</div>' +
+          '<div class="sdc-metric-bar-wrap"><div class="sdc-metric-bar ' + wlCls + '" id="bar-' + sId + '-waterLevel" style="width:' + wlPct + '%"></div></div>' +
+          '<div class="sdc-metric-value" id="val-' + sId + '-waterLevel">' + wl + ' cm</div>' +
+          '<div class="sdc-metric-status ' + wlCls + '">' + wlLbl + '</div>' +
+        '</div>';
+      })() +
     '</div>' +
     '<div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--bega-border);">' +
       '<div style="font-family:var(--font-mono);font-size:0.6rem;color:rgba(79,195,247,0.4);letter-spacing:0.08em;margin-bottom:8px;">pH TREND &middot; LAST 12 READINGS</div>' +
@@ -192,6 +206,11 @@ const Pages = {
               <div class="sensor-name">O₂ (dissolved)</div>
               <div class="sensor-bar-wrap"><div class="sensor-bar good" style="width:80%"></div></div>
               <div class="sensor-val">8.6 mg/L</div>
+            </div>
+            <div class="sensor-item">
+              <div class="sensor-name">Water Level</div>
+              <div class="sensor-bar-wrap"><div class="sensor-bar ${MOCK_DATA.sensors[0].waterLevel < 180 ? 'good' : MOCK_DATA.sensors[0].waterLevel < 220 ? 'warning' : 'danger'}" style="width:${Math.min(MOCK_DATA.sensors[0].waterLevel/300*100,100).toFixed(0)}%"></div></div>
+              <div class="sensor-val">${MOCK_DATA.sensors[0].waterLevel} cm</div>
             </div>
           </div>
           <div style="margin-top:14px;">
@@ -571,14 +590,18 @@ const Pages = {
   // ——— IOT SENSORS DASHBOARD ———
   sensors() {
     var sensors = MOCK_DATA.sensors;
-    var online  = 0, warning = 0, offline = 0, phSum = 0, o2Sum = 0, activeCount = 0;
+    var online  = 0, warning = 0, offline = 0, phSum = 0, o2Sum = 0, wlSum = 0, activeCount = 0;
     for (var i = 0; i < sensors.length; i++) {
       var s = sensors[i];
       if (s.status === 'online')  online++;
       if (s.status === 'warning') warning++;
       if (s.status === 'offline') offline++;
-      if (s.status !== 'offline') { phSum += s.ph; o2Sum += s.oxygen; activeCount++; }
+      if (s.status !== 'offline') { phSum += s.ph; o2Sum += s.oxygen; wlSum += (s.waterLevel || 0); activeCount++; }
     }
+    var avgWL     = activeCount ? Math.round(wlSum / activeCount) : 0;
+    var maxWL     = sensors.filter(s => s.status !== 'offline').reduce((m, s) => Math.max(m, s.waterLevel || 0), 0);
+    var wlStatus  = maxWL >= 220 ? 'FLOOD RISK' : maxWL >= 180 ? 'ELEVATED' : 'NORMAL';
+    var wlColor   = maxWL >= 220 ? '#EF5350' : maxWL >= 180 ? '#FFA726' : '#66BB6A';
     var avgPh  = activeCount ? (phSum  / activeCount).toFixed(1) : '7.0';
     var avgO2  = activeCount ? (o2Sum  / activeCount).toFixed(1) : '8.0';
     var phTrend  = parseFloat(avgPh) >= 7 ? 'Slightly alkaline' : parseFloat(avgPh) >= 6.5 ? 'Slightly acidic' : 'Acidic';
@@ -595,10 +618,11 @@ const Pages = {
     }
 
     // Pre-build comparison charts
-    var phChart   = Charts.metricBars(sensors, 'ph',          'pH Level',            14, '',        'ph');
-    var turbChart = Charts.metricBars(sensors, 'turbidity',   'Turbidity (NTU)',     80, ' NTU',    'turbidity');
-    var tempChart = Charts.metricBars(sensors, 'temperature', 'Temperature (C)',     35, 'C',       'temperature');
+    var phChart   = Charts.metricBars(sensors, 'ph',          'pH Level',            14,  '',       'ph');
+    var turbChart = Charts.metricBars(sensors, 'turbidity',   'Turbidity (NTU)',     80,  ' NTU',   'turbidity');
+    var tempChart = Charts.metricBars(sensors, 'temperature', 'Temperature (C)',     35,  'C',      'temperature');
     var o2Chart   = Charts.metricBars(sensors, 'oxygen',      'Dissolved O2 (mg/L)', 12, ' mg/L',  'oxygen');
+    var wlChart   = Charts.metricBars(sensors, 'waterLevel',  'Water Level (cm)',   300,  ' cm',    'waterLevel');
 
     // Pre-build table rows
     var rowsHtml = '';
@@ -617,6 +641,7 @@ const Pages = {
         '<td style="font-family:var(--font-mono);color:' + tbC  + ';">' + (s.turbidity ? s.turbidity + ' NTU' : '&mdash;') + '</td>' +
         '<td style="font-family:var(--font-mono);">'                     + (s.temperature ? s.temperature + '&#8451;' : '&mdash;') + '</td>' +
         '<td style="font-family:var(--font-mono);color:' + o2C  + ';">' + (s.oxygen    ? s.oxygen    + ' mg/L' : '&mdash;') + '</td>' +
+        '<td style="font-family:var(--font-mono);color:' + sensorColor('waterLevel', s.waterLevel||0) + ';">' + (s.waterLevel ? s.waterLevel + ' cm' : '&mdash;') + '</td>' +
         '<td style="font-family:var(--font-mono);font-size:0.68rem;color:rgba(79,195,247,0.4);">' + s.lat + 'N ' + s.lon + 'E</td>' +
         '<td>' + trnd + '</td>' +
         '</tr>';
@@ -655,6 +680,66 @@ const Pages = {
           <div class="card-value">${avgO2}<span class="card-unit">mg/L</span></div>
           <div class="card-trend ${o2TrendCls}">${o2Trend}</div>
         </div>
+      </div>
+
+      <div class="section-title">Water Level Monitor</div>
+      <div class="card" style="margin-bottom:24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+          <div>
+            <div class="card-label">BEGA CANAL · LIVE WATER LEVELS</div>
+            <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+              <div style="font-size:2.4rem;font-weight:700;font-family:var(--font-mono);color:${wlColor};" id="wl-avg-display">${avgWL} cm</div>
+              <div>
+                <div style="font-family:var(--font-mono);font-size:0.7rem;color:rgba(232,244,253,0.4);">AVG ACROSS ${activeCount} ACTIVE SENSORS</div>
+                <div class="badge" style="background:${wlColor}18;border:1px solid ${wlColor}50;color:${wlColor};font-size:0.65rem;margin-top:4px;" id="wl-status-badge">${wlStatus}</div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:6px;font-family:var(--font-mono);font-size:0.68rem;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:12px;height:3px;background:#66BB6A;display:inline-block;border-radius:2px;"></span><span style="color:rgba(232,244,253,0.5);">Normal &lt; 180 cm</span></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:12px;height:3px;background:#FFA726;display:inline-block;border-radius:2px;"></span><span style="color:rgba(232,244,253,0.5);">Elevated 180–220 cm</span></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:12px;height:3px;background:#EF5350;display:inline-block;border-radius:2px;"></span><span style="color:rgba(232,244,253,0.5);">Flood risk &gt; 220 cm</span></div>
+          </div>
+        </div>
+
+        <!-- Per-sensor level gauges -->
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          ${sensors.filter(s => s.status !== 'offline').map(s => {
+            var wl    = s.waterLevel || 0;
+            var pct   = Math.min(wl / 300 * 100, 100).toFixed(1);
+            var col   = sensorColor('waterLevel', wl);
+            var lbl   = wl < 180 ? 'Normal' : wl < 220 ? 'Elevated' : 'FLOOD RISK';
+            var warn180pct = (180/300*100).toFixed(1);
+            var warn220pct = (220/300*100).toFixed(1);
+            return `<div style="display:grid;grid-template-columns:160px 1fr 70px 80px;align-items:center;gap:10px;">
+              <div style="font-size:0.8rem;color:#e8f4fd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${s.name}</div>
+              <div style="position:relative;height:10px;background:rgba(36,118,181,0.18);border-radius:5px;overflow:visible;">
+                <div id="wl-bar-${s.id}" style="height:100%;width:${pct}%;background:${col};border-radius:5px;transition:width 0.6s;"></div>
+                <div style="position:absolute;top:-4px;bottom:-4px;left:${warn180pct}%;width:1px;background:rgba(255,167,38,0.55);"></div>
+                <div style="position:absolute;top:-4px;bottom:-4px;left:${warn220pct}%;width:1px;background:rgba(239,83,80,0.55);"></div>
+              </div>
+              <div id="wl-val-${s.id}" style="font-family:var(--font-mono);font-size:0.82rem;font-weight:600;color:${col};text-align:right;">${wl} cm</div>
+              <div style="font-family:var(--font-mono);font-size:0.62rem;color:${col};text-align:right;">${lbl}</div>
+            </div>`;
+          }).join('')}
+          ${sensors.filter(s => s.status === 'offline').map(s =>
+            `<div style="display:grid;grid-template-columns:160px 1fr 70px 80px;align-items:center;gap:10px;opacity:0.3;">
+              <div style="font-size:0.8rem;color:#e8f4fd;">${s.name}</div>
+              <div style="height:10px;background:rgba(36,118,181,0.1);border-radius:5px;"></div>
+              <div style="font-family:var(--font-mono);font-size:0.82rem;color:rgba(232,244,253,0.3);text-align:right;">— cm</div>
+              <div style="font-family:var(--font-mono);font-size:0.62rem;color:rgba(232,244,253,0.3);text-align:right;">offline</div>
+            </div>`
+          ).join('')}
+        </div>
+
+        <!-- Flood threshold note -->
+        ${maxWL >= 180 ? `
+        <div class="alert ${maxWL >= 220 ? 'alert-warn' : 'alert-info'}" style="margin-top:18px;">
+          <div class="alert-icon">${maxWL >= 220 ? '🚨' : '⚠️'}</div>
+          <div><strong>${maxWL >= 220 ? 'Flood risk detected' : 'Elevated water level'}:</strong>
+          Sensor at <strong>${sensors.find(s => (s.waterLevel||0) === maxWL)?.name || '—'}</strong> reads
+          <strong>${maxWL} cm</strong> — ${maxWL >= 220 ? 'above flood threshold (220 cm). Alert authorities.' : 'approaching warning threshold (220 cm). Monitor closely.'}</div>
+        </div>` : ''}
       </div>
 
       <div class="section-title">Sensor Network Map</div>
@@ -702,6 +787,7 @@ const Pages = {
         ${turbChart}
         ${tempChart}
         ${o2Chart}
+        ${wlChart}
       </div>
 
       <div class="section-title">Raw Data Table</div>
@@ -710,7 +796,7 @@ const Pages = {
           <thead>
             <tr>
               <th>Sensor</th><th>Location</th><th>Status</th>
-              <th>pH</th><th>Turbidity</th><th>Temp</th><th>O&#8322;</th>
+              <th>pH</th><th>Turbidity</th><th>Temp</th><th>O&#8322;</th><th>Water Level</th>
               <th>Coordinates</th><th>Trend</th>
             </tr>
           </thead>
