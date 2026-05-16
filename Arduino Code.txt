@@ -1,0 +1,39 @@
+
+#include "DHT.h"
+
+#define DHTPIN 2       
+#define DHTTYPE DHT11   
+const int waterPin = A0;
+DHT dht(DHTPIN, DHTTYPE);
+
+void setup() {
+  Serial.begin(9600);
+  Serial.println("Initializare senzori...");
+  dht.begin(); // Pornim senzorul de aer
+}
+
+void loop() {
+  // Citim senzorul de aer (dureaza cam 2 secunde)
+  float umiditate = dht.readHumidity();
+  float temperatura = dht.readTemperature();
+
+  // Citim senzorul de apa
+  int nivelApa = analogRead(waterPin);
+
+  // Verificam daca senzorul de aer a raspuns corect
+  if (isnan(umiditate) || isnan(temperatura)) {
+    Serial.println("Eroare la citirea senzorului DHT11!");
+  } else {
+    Serial.print("Aer -> Umiditate: ");
+    Serial.print(umiditate);
+    Serial.print("% | Temperatura: ");
+    Serial.print(temperatura);
+    Serial.println("°C");
+  }
+
+  Serial.print("Apa -> Nivel: ");
+  Serial.println(nivelApa);
+  Serial.println("-----------------------");
+
+  delay(2000); 
+}
