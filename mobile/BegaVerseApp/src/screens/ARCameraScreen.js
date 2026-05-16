@@ -1,131 +1,133 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity, StatusBar } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
+import { BegaColors, BegaCardShadow } from '../../constants/theme';
+import { useBegaNotify } from '../components/BegaNotification';
 
 export default function ARCameraScreen({ navigation }) {
+  const { showDialog } = useBegaNotify();
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
-  // Handle QR code scan
-  const handleBarCodeScanned = ({ type, data }) => {
+  const handleBarCodeScanned = ({ data }) => {
     setScanned(true);
-     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    
-    // Show preview alert
-    Alert.alert(
-      '🌊 AR Content Unlocked!',
-      `Location: ${data}\n\nTap "View More" to see full AR experience!`,
-      [
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showDialog({
+      title: 'AR CONTENT UNLOCKED',
+      message: `Location: ${data}\n\nTap View to see the full AR experience.`,
+      type: 'success',
+      buttons: [
         {
-          text: 'View More',
-          onPress: () => {
-            // Navigate to AR Content screen
-            navigation.navigate('ARContent', { qrData: data });
-            // Reset scanned state when coming back
-            setTimeout(() => setScanned(false), 500);
-          }
+          text: 'SCAN AGAIN',
+          style: 'cancel',
+          onPress: () => setScanned(false),
         },
         {
-          text: 'Scan Again',
-          onPress: () => setScanned(false),
-          style: 'cancel'
-        }
-      ]
-    );
+          text: 'VIEW AR',
+          onPress: () => {
+            navigation.navigate('ARContent', { qrData: data });
+            setTimeout(() => setScanned(false), 500);
+          },
+        },
+      ],
+    });
   };
 
-  // Permission not determined yet
+  // Permissions pending
   if (!permission) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>Requesting camera permission...</Text>
+      <View style={styles.permContainer}>
+        <StatusBar barStyle="light-content" backgroundColor={BegaColors.deep} />
+        <Text style={styles.permTitle}>INITIALISING SCANNER</Text>
+        <Text style={styles.permSub}>Requesting camera access…</Text>
       </View>
     );
   }
 
-  // Permission denied
+  // Permissions denied
   if (!permission.granted) {
     return (
-      <View style={styles.container}>
-        <Text style={styles.text}>Camera permission required</Text>
-        <Text style={styles.subtext}>
-          Please grant camera access to scan QR codes
-        </Text>
-        <TouchableOpacity 
-          style={styles.button}
-          onPress={requestPermission}
-        >
-          <Text style={styles.buttonText}>Grant Permission</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.button, styles.secondaryButton]}
-          onPress={() => navigation.goBack()}
-        >
-          <Text style={styles.buttonText}>← Back to Home</Text>
-        </TouchableOpacity>
+      <View style={styles.permContainer}>
+        <StatusBar barStyle="light-content" backgroundColor={BegaColors.deep} />
+        <View style={styles.permCard}>
+          <View style={styles.permCardAccent} />
+          <View style={styles.permCardInner}>
+            <Text style={styles.permTag}>[ PERMISSION REQUIRED ]</Text>
+            <Text style={styles.permTitle}>CAMERA ACCESS</Text>
+            <Text style={styles.permSub}>Grant camera access to scan QR codes and unlock AR content.</Text>
+            <TouchableOpacity style={styles.permBtn} onPress={requestPermission} activeOpacity={0.8}>
+              <Text style={styles.permBtnText}>GRANT ACCESS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.permBtnGhost} onPress={() => navigation.goBack()} activeOpacity={0.8}>
+              <Text style={styles.permBtnGhostText}>← BACK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </View>
     );
   }
 
-  // Camera view with permission granted
   return (
     <View style={styles.container}>
-      {/* Camera (no children!) */}
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
       <CameraView
         style={styles.camera}
         facing="back"
         onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: ['qr'],
-        }}
+        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
       />
 
-      {/* Overlay (absolute positioned OUTSIDE camera) */}
+      {/* Overlay */}
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={styles.topOverlay} />
-        
+
         <View style={styles.middleRow}>
           <View style={styles.sideOverlay} />
+
+          {/* Scan frame */}
           <View style={styles.scanArea}>
-            <View style={[styles.corner, styles.topLeft]} />
-            <View style={[styles.corner, styles.topRight]} />
-            <View style={[styles.corner, styles.bottomLeft]} />
-            <View style={[styles.corner, styles.bottomRight]} />
-            
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
             {!scanned && (
-              <Text style={styles.scanText}>Point at QR code</Text>
+              <Text style={styles.scanHint}>POINT AT QR CODE</Text>
             )}
           </View>
+
           <View style={styles.sideOverlay} />
         </View>
-        
+
         <View style={styles.bottomOverlay}>
-          <TouchableOpacity 
-            style={styles.backButton}
+          <TouchableOpacity
+            style={styles.backBtn}
             onPress={() => navigation.goBack()}
+            activeOpacity={0.8}
           >
-            <Text style={styles.backButtonText}>← Back</Text>
+            <Text style={styles.backBtnText}>← BACK</Text>
           </TouchableOpacity>
-          
+
           {scanned && (
-            <TouchableOpacity 
-              style={styles.scanAgainButton}
+            <TouchableOpacity
+              style={styles.rescanBtn}
               onPress={() => setScanned(false)}
+              activeOpacity={0.8}
             >
-              <Text style={styles.scanAgainText}>Tap to Scan Again</Text>
+              <Text style={styles.rescanBtnText}>SCAN AGAIN</Text>
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Instructions (absolute positioned) */}
+      {/* Instructions */}
       <View style={styles.instructions}>
-        <Text style={styles.instructionTitle}>💡 How to use:</Text>
-        <Text style={styles.instructionText}>
+        <Text style={styles.instrLabel}>// HOW TO USE</Text>
+        <Text style={styles.instrText}>
           1. Point camera at QR code{'\n'}
           2. Wait for automatic scan{'\n'}
-          3. Tap "View More" for AR content!
+          3. Tap VIEW AR for content
         </Text>
       </View>
     </View>
@@ -133,158 +135,97 @@ export default function ARCameraScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  camera: {
-    flex: 1,
-  },
-  overlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-  },
-  topOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
-  middleRow: {
-    flexDirection: 'row',
-    height: 250,
-  },
-  sideOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-  },
+  container: { flex: 1, backgroundColor: '#000' },
+  camera:    { flex: 1 },
+
+  // ── Overlay ─────────────────────────────────────────────
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
+  topOverlay:  { flex: 1,  backgroundColor: 'rgba(3, 12, 24, 0.72)' },
+  sideOverlay: { flex: 1,  backgroundColor: 'rgba(3, 12, 24, 0.72)' },
+  middleRow:   { flexDirection: 'row', height: 250 },
+
   scanArea: {
-    width: 250,
-    height: 250,
-    justifyContent: 'center',
-    alignItems: 'center',
-    position: 'relative',
+    width: 250, height: 250,
+    justifyContent: 'center', alignItems: 'center', position: 'relative',
   },
   corner: {
-    position: 'absolute',
-    width: 30,
-    height: 30,
-    borderColor: '#0077BE',
+    position: 'absolute', width: 28, height: 28,
+    borderColor: BegaColors.cyan,
   },
-  topLeft: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
+  cornerTL: { top: 0,    left: 0,  borderTopWidth: 3, borderLeftWidth: 3 },
+  cornerTR: { top: 0,    right: 0, borderTopWidth: 3, borderRightWidth: 3 },
+  cornerBL: { bottom: 0, left: 0,  borderBottomWidth: 3, borderLeftWidth: 3 },
+  cornerBR: { bottom: 0, right: 0, borderBottomWidth: 3, borderRightWidth: 3 },
+
+  scanHint: {
+    color: BegaColors.cyan, fontSize: 11,
+    fontFamily: 'monospace', letterSpacing: 2,
+    backgroundColor: 'rgba(3, 12, 24, 0.8)',
+    paddingHorizontal: 12, paddingVertical: 8, borderRadius: 3,
   },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-  },
-  bottomRight: {
-    bottom: 0,
-    right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-  },
-  scanText: {
-    color: '#0077BE',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    backgroundColor: 'rgba(0,0,0,0.7)',
-    padding: 10,
-    borderRadius: 8,
-  },
+
   bottomOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingBottom: 40,
+    backgroundColor: 'rgba(3, 12, 24, 0.72)',
+    justifyContent: 'center', alignItems: 'center', paddingBottom: 100,
   },
-  backButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingHorizontal: 30,
-    paddingVertical: 12,
-    borderRadius: 25,
-    marginBottom: 10,
+  backBtn: {
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderRadius: 3, paddingHorizontal: 28, paddingVertical: 12, marginBottom: 12,
   },
-  backButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  backBtnText:   { color: BegaColors.textMuted, fontSize: 12, fontFamily: 'monospace', letterSpacing: 1.5 },
+  rescanBtn: {
+    backgroundColor: BegaColors.cyan,
+    borderRadius: 3, paddingHorizontal: 28, paddingVertical: 14,
   },
-  scanAgainButton: {
-    backgroundColor: '#0077BE',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 25,
-  },
-  scanAgainText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  rescanBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', fontFamily: 'monospace', letterSpacing: 1.5 },
+
+  // ── Instructions ────────────────────────────────────────
   instructions: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    right: 20,
-    backgroundColor: 'rgba(0, 119, 190, 0.9)',
-    padding: 15,
-    borderRadius: 12,
+    position: 'absolute', bottom: 24, left: 20, right: 20,
+    backgroundColor: BegaColors.navy,
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderLeftWidth: 3, borderLeftColor: BegaColors.cyan,
+    borderRadius: 4, padding: 16,
+    ...BegaCardShadow,
   },
-  instructionTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
+  instrLabel: { fontSize: 10, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 2, marginBottom: 8 },
+  instrText:  { fontSize: 12, color: BegaColors.textPrimary, fontFamily: 'monospace', lineHeight: 20 },
+
+  // ── Permission screens ───────────────────────────────────
+  permContainer: {
+    flex: 1, backgroundColor: BegaColors.deep,
+    justifyContent: 'center', alignItems: 'center', padding: 24,
   },
-  instructionText: {
-    fontSize: 12,
-    color: '#fff',
-    lineHeight: 18,
+  permCard: {
+    flexDirection: 'row',
+    backgroundColor: BegaColors.cardBg,
+    borderWidth: 1, borderColor: BegaColors.cardBorder,
+    borderRadius: 4, overflow: 'hidden', width: '100%',
+    ...BegaCardShadow,
   },
-  text: {
-    fontSize: 18,
-    color: '#fff',
-    textAlign: 'center',
-    marginTop: 100,
+  permCardAccent: { width: 3, backgroundColor: BegaColors.cyan },
+  permCardInner:  { flex: 1, padding: 24, alignItems: 'center' },
+  permTag: {
+    color: BegaColors.textMuted, fontSize: 10, fontFamily: 'monospace',
+    letterSpacing: 1.5, marginBottom: 16,
   },
-  subtext: {
-    fontSize: 14,
-    color: '#FFB74D',
-    textAlign: 'center',
-    marginTop: 10,
-    paddingHorizontal: 40,
+  permTitle: {
+    fontSize: 26, fontWeight: '800', color: BegaColors.textPrimary,
+    letterSpacing: 3, marginBottom: 12, textAlign: 'center',
   },
-  button: {
-    backgroundColor: '#0077BE',
-    padding: 15,
-    borderRadius: 12,
-    marginTop: 30,
-    marginHorizontal: 40,
+  permSub: {
+    fontSize: 13, color: BegaColors.textMuted, textAlign: 'center',
+    lineHeight: 20, marginBottom: 24,
   },
-  secondaryButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#0077BE',
-    marginTop: 15,
+  permBtn: {
+    backgroundColor: BegaColors.cyan, borderRadius: 3,
+    paddingHorizontal: 32, paddingVertical: 14, marginBottom: 12, width: '100%', alignItems: 'center',
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+  permBtnText: { color: '#fff', fontSize: 12, fontWeight: '700', fontFamily: 'monospace', letterSpacing: 1.5 },
+  permBtnGhost: {
+    borderWidth: 1, borderColor: BegaColors.cardBorder, borderRadius: 3,
+    paddingHorizontal: 32, paddingVertical: 12, width: '100%', alignItems: 'center',
   },
+  permBtnGhostText: { color: BegaColors.textMuted, fontSize: 12, fontFamily: 'monospace', letterSpacing: 1 },
 });
