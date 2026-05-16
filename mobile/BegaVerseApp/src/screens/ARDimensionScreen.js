@@ -21,6 +21,7 @@ import Svg, {
   Polygon, 
   Path,
   Line,
+  Ellipse,
   G,
   Text as SvgText
 } from 'react-native-svg';
@@ -270,7 +271,7 @@ export default function ARDimensionScreen({ navigation }) {
           <Animated.View
             style={[
               styles.scanLine,
-              { top: scanPosition }
+              { transform: [{ translateY: scanPosition }] }
             ]}
             pointerEvents="none"
           >
@@ -511,6 +512,7 @@ const styles = StyleSheet.create({
   },
   scanLine: {
     position: 'absolute',
+    top: 0,
     left: 0,
     right: 0,
   },

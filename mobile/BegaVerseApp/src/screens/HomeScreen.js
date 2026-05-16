@@ -102,6 +102,13 @@ export default function HomeScreen({ navigation }) {
   onPress={() => navigation.navigate('ARDimension')}
   delay={300}
 />
+<AnimatedCard
+  icon="🎨"
+  title="3D Reality Filter"
+  description="Transform your world into 3D"
+  onPress={() => navigation.navigate('AR3DWorld')}
+  delay={400}
+/>
       </View>
 
       <View style={styles.statsContainer}>

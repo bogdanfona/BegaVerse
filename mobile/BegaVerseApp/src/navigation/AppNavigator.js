@@ -9,6 +9,7 @@ import QuestsScreen from '../screens/QuestsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import ARContentScreen from '../screens/ARContentScreen'; // NEW
 import ARDimensionScreen from '../screens/ARDimensionScreen';
+import AR3DWorldScreen from '../screens/AR3DWorldScreen';
 
 const Stack = createStackNavigator();
 
@@ -58,6 +59,11 @@ export default function AppNavigator() {
         <Stack.Screen 
   name="ARDimension" 
   component={ARDimensionScreen}
+  options={{ headerShown: false }}
+/>
+<Stack.Screen 
+  name="AR3DWorld" 
+  component={AR3DWorldScreen}
   options={{ headerShown: false }}
 />
       </Stack.Navigator>
