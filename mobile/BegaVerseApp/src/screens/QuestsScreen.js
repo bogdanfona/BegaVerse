@@ -1,38 +1,54 @@
-import React, { useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   StyleSheet, Text, View, ScrollView,
-  TouchableOpacity, Animated, StatusBar,
+  TouchableOpacity, Animated, StatusBar, ActivityIndicator,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { BegaColors, BegaCardShadow } from '../../constants/theme';
+import { useBegaNotify } from '../components/BegaNotification';
+import {
+  seedQuests,
+  watchQuestProgress,
+  incrementQuestProgress,
+  QUEST_DEFINITIONS,
+} from '../services/questService';
+import { watchBalance } from '../services/walletService';
 
-const MOCK_QUESTS = [
-  { id: 1, title: 'Bridge Explorer', description: 'Visit all 6 bridges along Bega River',   progress: 3, total: 6,  xp: 100 },
-  { id: 2, title: 'Eco Warrior',     description: 'Report 5 pollution incidents',            progress: 1, total: 5,  xp: 150 },
-  { id: 3, title: 'History Buff',    description: 'Scan 10 historical QR locations',         progress: 7, total: 10, xp: 200 },
-];
+const CURRENT_USER_ID = 'user_bogdan';
 
-const QuestCard = ({ quest }) => {
-  const pct = (quest.progress / quest.total) * 100;
+// ── Quest Card ────────────────────────────────────────────────────────────────
+
+const QuestCard = ({ quest, progress, onSimulateProgress }) => {
+  const current = progress?.progress || 0;
+  const completed = progress?.completed || false;
+  const pct = Math.min((current / quest.maxProgress) * 100, 100);
   const progressAnim = useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => {
+  useEffect(() => {
     Animated.timing(progressAnim, {
       toValue: pct,
-      duration: 1000,
-      delay: quest.id * 120,
+      duration: 800,
       useNativeDriver: false,
     }).start();
-  }, []);
+  }, [pct]);
+
+  const accentColor = completed ? BegaColors.greenBright : BegaColors.amber;
 
   return (
-    <View style={styles.questCard}>
-      <View style={styles.cardAccent} />
+    <View style={[styles.questCard, completed && styles.questCardDone]}>
+      <View style={[styles.cardAccent, { backgroundColor: accentColor }]} />
       <View style={styles.cardInner}>
+
         <View style={styles.questHeader}>
-          <Text style={styles.questTitle}>{quest.title}</Text>
-          <View style={styles.xpBadge}>
-            <Text style={styles.xpText}>+{quest.xp} XP</Text>
+          <Text style={styles.questIcon}>{quest.icon}</Text>
+          <View style={styles.questTitleBlock}>
+            <Text style={styles.questTitle}>{quest.title}</Text>
+            <Text style={styles.questCategory}>{quest.category.toUpperCase()}</Text>
+          </View>
+          <View style={[styles.rewardBadge, completed && styles.rewardBadgeDone]}>
+            <Text style={[styles.rewardText, completed && styles.rewardTextDone]}>
+              {completed ? '✓ DONE' : `+${quest.reward} PTS`}
+            </Text>
           </View>
         </View>
 
@@ -43,6 +59,7 @@ const QuestCard = ({ quest }) => {
             <Animated.View
               style={[
                 styles.progressFill,
+                completed && styles.progressFillDone,
                 {
                   width: progressAnim.interpolate({
                     inputRange: [0, 100],
@@ -52,59 +69,122 @@ const QuestCard = ({ quest }) => {
               ]}
             />
           </View>
-          <Text style={styles.progressText}>{quest.progress}/{quest.total}</Text>
+          <Text style={styles.progressText}>{current}/{quest.maxProgress}</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.detailBtn}
-          onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.detailBtnText}>VIEW DETAILS →</Text>
-        </TouchableOpacity>
+        {!completed && (
+          <TouchableOpacity
+            style={styles.progressBtn}
+            onPress={() => onSimulateProgress(quest.id)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.progressBtnText}>+ LOG PROGRESS →</Text>
+          </TouchableOpacity>
+        )}
+
+        {completed && (
+          <View style={styles.completedBanner}>
+            <Text style={styles.completedText}>QUEST COMPLETE · {quest.reward} PTS EARNED</Text>
+          </View>
+        )}
+
       </View>
     </View>
   );
 };
 
+// ── Main Screen ───────────────────────────────────────────────────────────────
+
 export default function QuestsScreen({ navigation }) {
+  const { showToast } = useBegaNotify();
+
+  const [questProgress, setQuestProgress] = useState({});
+  const [balance, setBalance]             = useState(null);
+  const [loading, setLoading]             = useState(true);
+
+  useEffect(() => {
+    seedQuests();
+
+    const unsubProgress = watchQuestProgress(CURRENT_USER_ID, (progress) => {
+      setQuestProgress(progress);
+      setLoading(false);
+    });
+
+    const unsubBalance = watchBalance(CURRENT_USER_ID, (pts) => {
+      setBalance(pts);
+    });
+
+    return () => {
+      unsubProgress && unsubProgress();
+      unsubBalance && unsubBalance();
+    };
+  }, []);
+
+  const handleSimulateProgress = useCallback(async (questId) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const result = await incrementQuestProgress(CURRENT_USER_ID, questId);
+    if (result.success) {
+      if (result.alreadyCompleted) {
+        showToast('Quest already completed!', 'info');
+      } else if (result.justCompleted) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        showToast(`Quest complete! +${result.pointsAwarded} pts earned`, 'success');
+      } else {
+        showToast(`Progress logged (${result.newProgress})`, 'success');
+      }
+    } else {
+      showToast('Failed to log progress', 'error');
+    }
+  }, [showToast]);
+
+  // Derived stats
+  const activeCount    = QUEST_DEFINITIONS.filter(q => !questProgress[q.id]?.completed && (questProgress[q.id]?.progress || 0) > 0).length;
+  const completedCount = QUEST_DEFINITIONS.filter(q => questProgress[q.id]?.completed).length;
+  const totalPtsEarned = QUEST_DEFINITIONS.filter(q => questProgress[q.id]?.completed).reduce((sum, q) => sum + q.reward, 0);
+
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor={BegaColors.deep} />
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
+        {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerTopRow}>
             <View style={styles.statusPill}>
               <View style={styles.statusDot} />
-              <Text style={styles.statusText}>3 ACTIVE</Text>
+              <Text style={styles.statusText}>{activeCount} ACTIVE</Text>
             </View>
             <Text style={styles.versionText}>QUESTS</Text>
           </View>
           <Text style={styles.title}>
             MISSION<Text style={styles.titleAccent}> BOARD</Text>
           </Text>
-          <Text style={styles.subtitle}>Complete challenges · Earn XP &amp; badges</Text>
+          <Text style={styles.subtitle}>Complete challenges · Earn points &amp; badges</Text>
+
+          {/* Wallet balance strip */}
+          <View style={styles.balanceStrip}>
+            <Text style={styles.balanceLabel}>WALLET BALANCE</Text>
+            <Text style={styles.balanceValue}>
+              {balance !== null ? `${balance.toLocaleString()} PTS` : '—'}
+            </Text>
+          </View>
           <View style={styles.headerDivider} />
         </View>
 
         <View style={styles.content}>
-          {/* Stats */}
+
+          {/* Stats row */}
           <View style={styles.statsRow}>
             {[
-              { value: '3',   label: 'ACTIVE' },
-              { value: '12',  label: 'DONE' },
-              { value: '850', label: 'TOTAL XP' },
+              { value: String(activeCount),    label: 'ACTIVE' },
+              { value: String(completedCount), label: 'DONE' },
+              { value: String(totalPtsEarned), label: 'PTS EARNED' },
             ].map((s, i) => (
               <View
                 key={i}
                 style={[
                   styles.statBox,
-                  i === 1 && {
-                    borderLeftWidth: 1,
-                    borderRightWidth: 1,
-                    borderColor: BegaColors.cardBorder,
-                  },
+                  i === 1 && { borderLeftWidth: 1, borderRightWidth: 1, borderColor: BegaColors.cardBorder },
                 ]}
               >
                 <Text style={styles.statValue}>{s.value}</Text>
@@ -114,7 +194,22 @@ export default function QuestsScreen({ navigation }) {
           </View>
 
           <Text style={styles.sectionTitle}>// MISSION LIST</Text>
-          {MOCK_QUESTS.map(q => <QuestCard key={q.id} quest={q} />)}
+
+          {loading ? (
+            <View style={styles.loadingBox}>
+              <ActivityIndicator color={BegaColors.cyan} />
+              <Text style={styles.loadingText}>SYNCING QUESTS...</Text>
+            </View>
+          ) : (
+            QUEST_DEFINITIONS.map(q => (
+              <QuestCard
+                key={q.id}
+                quest={q}
+                progress={questProgress[q.id]}
+                onSimulateProgress={handleSimulateProgress}
+              />
+            ))
+          )}
 
           <TouchableOpacity
             style={styles.backButton}
@@ -126,8 +221,8 @@ export default function QuestsScreen({ navigation }) {
           >
             <Text style={styles.backButtonText}>← BACK TO HOME</Text>
           </TouchableOpacity>
-        </View>
 
+        </View>
       </ScrollView>
     </>
   );
@@ -161,15 +256,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
-  statusDot: {
-    width: 7, height: 7, borderRadius: 4,
-    backgroundColor: BegaColors.cyan, marginRight: 6,
-  },
+  statusDot:   { width: 7, height: 7, borderRadius: 4, backgroundColor: BegaColors.cyan, marginRight: 6 },
   statusText:  { color: BegaColors.cyan,     fontSize: 10, fontFamily: 'monospace', letterSpacing: 1 },
   versionText: { color: BegaColors.textMuted, fontSize: 10, fontFamily: 'monospace', letterSpacing: 1 },
   title:       { fontSize: 34, fontWeight: '800', color: BegaColors.textPrimary, letterSpacing: 3 },
   titleAccent: { color: BegaColors.cyan },
   subtitle:    { fontSize: 11, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 1.5, marginTop: 4 },
+
+  balanceStrip: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+    backgroundColor: 'rgba(192, 132, 32, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(192, 132, 32, 0.3)',
+    borderRadius: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  balanceLabel: { fontSize: 9, color: BegaColors.gold, fontFamily: 'monospace', letterSpacing: 2 },
+  balanceValue: { fontSize: 18, fontWeight: '700', color: BegaColors.gold, fontFamily: 'monospace' },
+
   headerDivider: { height: 1, backgroundColor: BegaColors.cardBorder, marginTop: 20 },
 
   // ── Content ─────────────────────────────────────────────
@@ -186,15 +294,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     ...BegaCardShadow,
   },
-  statBox:    { flex: 1, alignItems: 'center', paddingVertical: 16 },
-  statValue:  { fontSize: 22, fontWeight: '700', color: BegaColors.cyan, fontFamily: 'monospace' },
-  statLabel:  { fontSize: 9, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 1.5, marginTop: 4 },
+  statBox:   { flex: 1, alignItems: 'center', paddingVertical: 16 },
+  statValue: { fontSize: 22, fontWeight: '700', color: BegaColors.cyan, fontFamily: 'monospace' },
+  statLabel: { fontSize: 9, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 1.5, marginTop: 4 },
 
   sectionTitle: {
     fontSize: 11, color: BegaColors.textMuted,
     fontFamily: 'monospace', letterSpacing: 2,
     marginBottom: 14, marginLeft: 4,
   },
+
+  loadingBox:  { alignItems: 'center', paddingVertical: 40, gap: 12 },
+  loadingText: { color: BegaColors.textMuted, fontFamily: 'monospace', fontSize: 11, letterSpacing: 1.5 },
 
   // ── Quest Cards ─────────────────────────────────────────
   questCard: {
@@ -207,43 +318,52 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...BegaCardShadow,
   },
-  cardAccent: { width: 3, backgroundColor: BegaColors.amber },
-  cardInner:  { flex: 1, padding: 16 },
+  questCardDone: { borderColor: 'rgba(102, 187, 106, 0.35)' },
+  cardAccent:    { width: 3 },
+  cardInner:     { flex: 1, padding: 16 },
 
   questHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
   },
-  questTitle: {
-    fontSize: 15, fontWeight: '700',
-    color: BegaColors.textPrimary, flex: 1, marginRight: 8,
-  },
-  xpBadge: {
+  questIcon:  { fontSize: 26, marginRight: 12 },
+  questTitleBlock: { flex: 1, marginRight: 8 },
+  questTitle:    { fontSize: 15, fontWeight: '700', color: BegaColors.textPrimary },
+  questCategory: { fontSize: 9, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 1.5, marginTop: 2 },
+
+  rewardBadge: {
     backgroundColor: 'rgba(192, 132, 32, 0.15)',
     borderWidth: 1, borderColor: 'rgba(192, 132, 32, 0.4)',
     borderRadius: 3, paddingHorizontal: 8, paddingVertical: 4,
   },
-  xpText: {
-    fontSize: 10, fontWeight: '700',
-    color: BegaColors.gold, fontFamily: 'monospace', letterSpacing: 0.5,
+  rewardBadgeDone: {
+    backgroundColor: 'rgba(102, 187, 106, 0.12)',
+    borderColor: 'rgba(102, 187, 106, 0.4)',
   },
-  questDescription: {
-    fontSize: 13, color: BegaColors.textMuted,
-    lineHeight: 18, marginBottom: 14,
-  },
+  rewardText:     { fontSize: 10, fontWeight: '700', color: BegaColors.gold,       fontFamily: 'monospace', letterSpacing: 0.5 },
+  rewardTextDone: { color: BegaColors.greenBright },
 
-  progressRow:    { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
-  progressTrack:  { flex: 1, height: 3, backgroundColor: BegaColors.blue, borderRadius: 2, overflow: 'hidden', marginRight: 10 },
-  progressFill:   { height: '100%', backgroundColor: BegaColors.cyan, borderRadius: 2 },
-  progressText:   { fontSize: 11, color: BegaColors.textMuted, fontFamily: 'monospace' },
+  questDescription: { fontSize: 13, color: BegaColors.textMuted, lineHeight: 18, marginBottom: 14 },
 
-  detailBtn: {
+  progressRow:  { flexDirection: 'row', alignItems: 'center', marginBottom: 14 },
+  progressTrack: { flex: 1, height: 3, backgroundColor: BegaColors.blue, borderRadius: 2, overflow: 'hidden', marginRight: 10 },
+  progressFill:  { height: '100%', backgroundColor: BegaColors.cyan, borderRadius: 2 },
+  progressFillDone: { backgroundColor: BegaColors.greenBright },
+  progressText:  { fontSize: 11, color: BegaColors.textMuted, fontFamily: 'monospace' },
+
+  progressBtn: {
     borderWidth: 1, borderColor: BegaColors.cardBorder,
     borderRadius: 3, paddingVertical: 8, paddingHorizontal: 12, alignSelf: 'flex-start',
   },
-  detailBtnText: { fontSize: 10, color: BegaColors.cyan, fontFamily: 'monospace', letterSpacing: 1 },
+  progressBtnText: { fontSize: 10, color: BegaColors.cyan, fontFamily: 'monospace', letterSpacing: 1 },
+
+  completedBanner: {
+    backgroundColor: 'rgba(102, 187, 106, 0.08)',
+    borderWidth: 1, borderColor: 'rgba(102, 187, 106, 0.25)',
+    borderRadius: 3, paddingVertical: 8, paddingHorizontal: 12, alignItems: 'center',
+  },
+  completedText: { fontSize: 10, color: BegaColors.greenBright, fontFamily: 'monospace', letterSpacing: 1 },
 
   // ── Back ────────────────────────────────────────────────
   backButton: {

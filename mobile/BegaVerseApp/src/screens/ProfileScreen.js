@@ -4,16 +4,11 @@ import {
   TouchableOpacity, StatusBar,
 } from 'react-native';
 import { getTopUsers, updateUserScore, addXP } from '../services/leaderboardService';
+import { watchBalance, initWallet } from '../services/walletService';
+import { watchQuestProgress, QUEST_DEFINITIONS } from '../services/questService';
 import * as Haptics from 'expo-haptics';
 import { BegaColors, BegaCardShadow } from '../../constants/theme';
 import { useBegaNotify } from '../components/BegaNotification';
-
-const MOCK_BADGES = [
-  { id: 1, icon: '🌉', name: 'Bridge Explorer', earned: true },
-  { id: 2, icon: '🌿', name: 'Eco Warrior',     earned: true },
-  { id: 3, icon: '📚', name: 'History Buff',    earned: false },
-  { id: 4, icon: '⭐', name: 'Bega Legend',     earned: false },
-];
 
 const CURRENT_USER_ID = 'user_bogdan';
 
@@ -42,25 +37,37 @@ function SkeletonLoader() {
 
 export default function ProfileScreen({ navigation }) {
   const { showToast } = useBegaNotify();
-  const [leaderboard, setLeaderboard] = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [leaderboard, setLeaderboard]   = useState([]);
+  const [loading, setLoading]           = useState(true);
+  const [currentUser, setCurrentUser]   = useState(null);
+  const [balance, setBalance]           = useState(null);
+  const [questProgress, setQuestProgress] = useState({});
 
   useEffect(() => {
     initializeUser();
-    const unsubscribe = getTopUsers(10, (users) => {
+
+    const unsubLeader = getTopUsers(10, (users) => {
       setLeaderboard(users);
       const user = users.find(u => u.id === CURRENT_USER_ID);
       if (user) setCurrentUser(user);
       setLoading(false);
     });
-    return () => unsubscribe && unsubscribe();
+
+    const unsubBalance = watchBalance(CURRENT_USER_ID, (pts) => setBalance(pts));
+    const unsubQuests  = watchQuestProgress(CURRENT_USER_ID, (p) => setQuestProgress(p));
+
+    return () => {
+      unsubLeader  && unsubLeader();
+      unsubBalance && unsubBalance();
+      unsubQuests  && unsubQuests();
+    };
   }, []);
 
   const initializeUser = async () => {
     await updateUserScore(CURRENT_USER_ID, {
       name: 'Bogdan Fona', xp: 850, level: 5, avatar: '🧑',
     });
+    await initWallet(CURRENT_USER_ID);
   };
 
   const handleAddXP = async () => {
@@ -76,6 +83,12 @@ export default function ProfileScreen({ navigation }) {
   const xp    = currentUser?.xp    || 850;
   const level = currentUser?.level || 5;
   const xpPct = (xp % 100);
+
+  const completedQuests = QUEST_DEFINITIONS.filter(q => questProgress[q.id]?.completed);
+  const badges = QUEST_DEFINITIONS.map(q => ({
+    id: q.id, icon: q.icon, name: q.title,
+    earned: !!(questProgress[q.id]?.completed),
+  }));
 
   return (
     <>
@@ -96,15 +109,24 @@ export default function ProfileScreen({ navigation }) {
 
         <View style={styles.content}>
 
+          {/* Wallet balance */}
+          <View style={[styles.card, styles.walletCard]}>
+            <Text style={styles.sectionLabel}>// WALLET BALANCE</Text>
+            <Text style={styles.walletValue}>
+              {balance !== null ? balance.toLocaleString() : '—'}
+            </Text>
+            <Text style={styles.walletUnit}>POINTS</Text>
+          </View>
+
           {/* Stats */}
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>// STATS OVERVIEW</Text>
             <View style={styles.statsGrid}>
               {[
-                { value: xp,   label: 'TOTAL XP' },
-                { value: 12,   label: 'QUESTS DONE' },
-                { value: 8,    label: 'LOCATIONS' },
-                { value: 2,    label: 'BADGES' },
+                { value: xp,                        label: 'TOTAL XP' },
+                { value: completedQuests.length,    label: 'QUESTS DONE' },
+                { value: badges.filter(b => b.earned).length, label: 'BADGES' },
+                { value: balance !== null ? balance : '—', label: 'POINTS' },
               ].map((s, i) => (
                 <View key={i} style={styles.statCell}>
                   <Text style={styles.statValue}>{s.value}</Text>
@@ -132,7 +154,7 @@ export default function ProfileScreen({ navigation }) {
           <View style={styles.card}>
             <Text style={styles.sectionLabel}>// BADGES</Text>
             <View style={styles.badgesGrid}>
-              {MOCK_BADGES.map(badge => (
+              {badges.map(badge => (
                 <TouchableOpacity
                   key={badge.id}
                   style={[styles.badgeCell, !badge.earned && styles.badgeLocked]}
@@ -310,6 +332,20 @@ const styles = StyleSheet.create({
     borderRadius: 4, padding: 14, alignItems: 'center',
   },
   backButtonText: { fontSize: 11, color: BegaColors.textMuted, fontFamily: 'monospace', letterSpacing: 1.5 },
+
+  // Wallet
+  walletCard: {
+    borderLeftColor: BegaColors.gold,
+    alignItems: 'center',
+  },
+  walletValue: {
+    fontSize: 48, fontWeight: '800', color: BegaColors.gold,
+    fontFamily: 'monospace', letterSpacing: 2,
+  },
+  walletUnit: {
+    fontSize: 11, color: BegaColors.textMuted,
+    fontFamily: 'monospace', letterSpacing: 3, marginTop: 2,
+  },
 
   // Skeleton
   skeletonAvatar: {
