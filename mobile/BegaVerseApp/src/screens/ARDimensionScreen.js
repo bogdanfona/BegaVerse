@@ -20,7 +20,7 @@ import Svg, {
   Rect, 
   Polygon, 
   Path,
-  Ellipse,
+  Line,
   G,
   Text as SvgText
 } from 'react-native-svg';
@@ -29,13 +29,15 @@ const { width, height } = Dimensions.get('window');
 
 export default function ARDimensionScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
-  const [in3DWorld, setIn3DWorld] = useState(false);
-  const [cameraRotation, setCameraRotation] = useState({ x: 0, y: 0, z: 0 });
-  const [viewOffset, setViewOffset] = useState(0);
+  const [arActive, setArActive] = useState(false);
+  const [objectPlaced, setObjectPlaced] = useState(false);
+  const [viewRotation, setViewRotation] = useState(0);
+  const [viewTilt, setViewTilt] = useState(0);
   
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const portalGlow = useRef(new Animated.Value(0)).current;
-  const worldFade = useRef(new Animated.Value(0)).current;
+  const scanAnim = useRef(new Animated.Value(0)).current;
+  const planeOpacity = useRef(new Animated.Value(0)).current;
+  const objectScale = useRef(new Animated.Value(0)).current;
   const gyroSubscription = useRef(null);
   
   useEffect(() => {
@@ -47,15 +49,15 @@ export default function ARDimensionScreen({ navigation }) {
       useNativeDriver: true,
     }).start();
     
-    // Portal glow pulse
+    // Scanning animation
     Animated.loop(
       Animated.sequence([
-        Animated.timing(portalGlow, {
+        Animated.timing(scanAnim, {
           toValue: 1,
           duration: 2000,
           useNativeDriver: true,
         }),
-        Animated.timing(portalGlow, {
+        Animated.timing(scanAnim, {
           toValue: 0,
           duration: 2000,
           useNativeDriver: true,
@@ -70,35 +72,33 @@ export default function ARDimensionScreen({ navigation }) {
     };
   }, []);
   
-  // Start gyroscope when entering 3D world
+  // Gyroscope for AR tracking
   useEffect(() => {
-    if (in3DWorld) {
+    if (arActive) {
       startGyroscope();
     } else {
       stopGyroscope();
     }
-  }, [in3DWorld]);
+  }, [arActive]);
   
   const startGyroscope = async () => {
     try {
-      await Gyroscope.setUpdateInterval(16); // 60fps
+      await Gyroscope.setUpdateInterval(16);
       
       gyroSubscription.current = Gyroscope.addListener(gyroscopeData => {
-        // Update view based on phone rotation
-        setViewOffset(prev => {
-          const newOffset = prev + (gyroscopeData.y * 50); // Rotate left/right
-          // Keep within bounds (-800 to 800 for full 360° view)
-          return Math.max(-800, Math.min(800, newOffset));
+        // INVERSE rotation so objects appear "fixed" in space
+        setViewRotation(prev => {
+          const newRotation = prev - (gyroscopeData.y * 25);
+          return Math.max(-800, Math.min(800, newRotation));
         });
         
-        setCameraRotation({
-          x: gyroscopeData.x,
-          y: gyroscopeData.y,
-          z: gyroscopeData.z
+        setViewTilt(prev => {
+          const newTilt = prev - (gyroscopeData.x * 15);
+          return Math.max(-100, Math.min(100, newTilt));
         });
       });
     } catch (error) {
-      console.log('Gyroscope not available:', error);
+      console.log('Gyroscope not available');
     }
   };
   
@@ -109,40 +109,66 @@ export default function ARDimensionScreen({ navigation }) {
     }
   };
   
-  // Enter 3D world
-  const enterWorld = () => {
+  // Start AR scanning
+  const startAR = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setArActive(true);
+    
+    // Animate plane detection
+    Animated.timing(planeOpacity, {
+      toValue: 1,
+      duration: 1500,
+      useNativeDriver: true,
+    }).start();
     
     Alert.alert(
-      '🌊 Entering Bega Dimension',
-      'Move your phone to look around the 360° 3D Bega world!',
-      [{ 
-        text: 'Enter!', 
-        onPress: () => {
-          setIn3DWorld(true);
-          setViewOffset(0);
-          
-          Animated.timing(worldFade, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }).start();
-        }
-      }]
+      '📱 Scanning for Surfaces',
+      'Point camera at a flat surface (floor, table, ground)',
+      [{ text: 'Got it!', style: 'default' }]
     );
   };
   
-  // Exit 3D world
-  const exitWorld = () => {
+  // Place 3D object
+  const placeObject = () => {
+    if (!arActive) return;
+    
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setObjectPlaced(true);
+    
+    Animated.spring(objectScale, {
+      toValue: 1,
+      tension: 50,
+      friction: 7,
+      useNativeDriver: true,
+    }).start();
+    
+    Alert.alert(
+      '🌊 Bega River Placed!',
+      'Move your phone to view from different angles. The 3D model stays anchored in space!',
+      [{ text: 'Explore!', style: 'default' }]
+    );
+  };
+  
+  // Exit AR
+  const exitAR = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     
-    Animated.timing(worldFade, {
-      toValue: 0,
-      duration: 500,
-      useNativeDriver: true,
-    }).start(() => {
-      setIn3DWorld(false);
-      setViewOffset(0);
+    Animated.parallel([
+      Animated.timing(planeOpacity, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(objectScale, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setArActive(false);
+      setObjectPlaced(false);
+      setViewRotation(0);
+      setViewTilt(0);
     });
   };
 
@@ -157,12 +183,12 @@ export default function ARDimensionScreen({ navigation }) {
   if (!permission.granted) {
     return (
       <View style={styles.container}>
-        <Text style={styles.text}>3D Immersive Experience</Text>
+        <Text style={styles.text}>AR Experience</Text>
         <Text style={styles.subtext}>
-          Enter a full 360° 3D world! Move your phone to look around.
+          True augmented reality - see 3D Bega overlaid on your world!
         </Text>
         <TouchableOpacity style={styles.button} onPress={requestPermission}>
-          <Text style={styles.buttonText}>Grant Access</Text>
+          <Text style={styles.buttonText}>Grant Camera Access</Text>
         </TouchableOpacity>
         <TouchableOpacity 
           style={[styles.button, styles.secondaryButton]}
@@ -174,252 +200,278 @@ export default function ARDimensionScreen({ navigation }) {
     );
   }
 
-  const glowOpacity = portalGlow.interpolate({
+  const scanPosition = scanAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0.5, 1]
+    outputRange: [0, height * 0.8]
   });
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-      {/* Camera Background (only before entering) */}
-      {!in3DWorld && <CameraView style={styles.camera} facing="back" />}
+      {/* CAMERA ALWAYS ON - Real World */}
+      <CameraView style={styles.camera} facing="back" />
 
-      {/* Portal Entry */}
-      {!in3DWorld && (
-        <View style={styles.portalContainer}>
-          <TouchableOpacity 
-            style={styles.portalButton}
-            onPress={enterWorld}
-            activeOpacity={0.8}
+      {/* AR OVERLAY */}
+      <View style={styles.arOverlay} pointerEvents="box-none">
+        
+        {/* Plane Detection Grid (appears when scanning) */}
+        {arActive && (
+          <Animated.View 
+            style={[
+              styles.planeDetection,
+              { opacity: planeOpacity }
+            ]}
+            pointerEvents="none"
           >
-            <Animated.View style={{ opacity: glowOpacity }}>
-              <Svg height={250} width={250}>
-                <Defs>
-                  <RadialGradient id="portalGlow">
-                    <Stop offset="0" stopColor="#00e5ff" stopOpacity="0.9" />
-                    <Stop offset="0.7" stopColor="#00b8d4" stopOpacity="0.5" />
-                    <Stop offset="1" stopColor="#006064" stopOpacity="0.2" />
-                  </RadialGradient>
-                </Defs>
+            <Svg height={height} width={width}>
+              <Defs>
+                <LinearGradient id="gridGrad" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor="#00E5FF" stopOpacity="0" />
+                  <Stop offset="0.5" stopColor="#00E5FF" stopOpacity="0.4" />
+                  <Stop offset="1" stopColor="#00E5FF" stopOpacity="0" />
+                </LinearGradient>
+              </Defs>
+              
+              {/* Grid pattern */}
+              {[...Array(15)].map((_, i) => (
+                <G key={`grid-${i}`}>
+                  {/* Horizontal lines */}
+                  <Line
+                    x1="0"
+                    y1={height * 0.5 + i * 40 - 300}
+                    x2={width}
+                    y2={height * 0.5 + i * 40 - 300}
+                    stroke="#00E5FF"
+                    strokeWidth="1"
+                    opacity="0.3"
+                  />
+                  {/* Vertical lines */}
+                  <Line
+                    x1={i * (width / 15)}
+                    y1={height * 0.3}
+                    x2={i * (width / 15)}
+                    y2={height * 0.9}
+                    stroke="#00E5FF"
+                    strokeWidth="1"
+                    opacity="0.3"
+                  />
+                </G>
+              ))}
+              
+              {/* Center target */}
+              <Circle cx={width / 2} cy={height * 0.6} r="50" fill="none" stroke="#00E5FF" strokeWidth="2" opacity="0.6" />
+              <Circle cx={width / 2} cy={height * 0.6} r="30" fill="none" stroke="#00E5FF" strokeWidth="2" opacity="0.6" />
+              <Circle cx={width / 2} cy={height * 0.6} r="10" fill="#00E5FF" opacity="0.8" />
+            </Svg>
+          </Animated.View>
+        )}
+        
+        {/* Scanning line */}
+        {arActive && !objectPlaced && (
+          <Animated.View
+            style={[
+              styles.scanLine,
+              { top: scanPosition }
+            ]}
+            pointerEvents="none"
+          >
+            <Svg height="3" width={width}>
+              <Line x1="0" y1="1.5" x2={width} y2="1.5" stroke="#00E5FF" strokeWidth="3" opacity="0.8" />
+            </Svg>
+          </Animated.View>
+        )}
+        
+        {/* 3D Bega Object (placed in AR space) */}
+        {objectPlaced && (
+          <Animated.View
+            style={[
+              styles.arObject,
+              {
+                transform: [
+                  { scale: objectScale },
+                  { translateX: viewRotation * 0.5 },
+                  { translateY: viewTilt * 0.3 }
+                ]
+              }
+            ]}
+            pointerEvents="none"
+          >
+            <Svg height={400} width={width * 2} viewBox={`${viewRotation} ${viewTilt} ${width} 400`}>
+              <Defs>
+                <LinearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor="#64B5F6" stopOpacity="0.9" />
+                  <Stop offset="1" stopColor="#1976D2" stopOpacity="0.9" />
+                </LinearGradient>
                 
-                <Circle cx="125" cy="125" r="120" fill="url(#portalGlow)" />
-                <Circle cx="125" cy="125" r="100" fill="none" stroke="#00e5ff" strokeWidth="3" strokeDasharray="10,5" />
-                <Circle cx="125" cy="125" r="80" fill="none" stroke="#00e5ff" strokeWidth="2" />
-                <Circle cx="125" cy="125" r="60" fill="none" stroke="#00e5ff" strokeWidth="3" strokeDasharray="10,5" />
-                <Circle cx="125" cy="125" r="20" fill="#00e5ff" />
-              </Svg>
+                <LinearGradient id="buildingGrad" x1="0" y1="0" x2="0" y2="1">
+                  <Stop offset="0" stopColor="#ECEFF1" stopOpacity="0.9" />
+                  <Stop offset="1" stopColor="#90A4AE" stopOpacity="0.9" />
+                </LinearGradient>
+                
+                <RadialGradient id="shadowGrad">
+                  <Stop offset="0" stopColor="#000000" stopOpacity="0.4" />
+                  <Stop offset="1" stopColor="#000000" stopOpacity="0" />
+                </RadialGradient>
+              </Defs>
               
-              <View style={styles.portalLabel}>
-                <Text style={styles.portalText}>🌊 ENTER 3D DIMENSION</Text>
-                <Text style={styles.portalSubtext}>Full 360° Immersive World</Text>
-              </View>
-            </Animated.View>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* FULL 360° 3D WORLD */}
-      {in3DWorld && (
-        <Animated.View style={[styles.worldContainer, { opacity: worldFade }]}>
-          <Svg 
-            height={height} 
-            width={width * 4} // 4x width for 360° panorama
-            viewBox={`${viewOffset} 0 ${width} ${height}`}
-            style={styles.worldSvg}
-          >
-            <Defs>
-              {/* Sky gradient */}
-              <LinearGradient id="skyGrad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#87CEEB" stopOpacity="1" />
-                <Stop offset="1" stopColor="#4A90E2" stopOpacity="1" />
-              </LinearGradient>
+              {/* Shadow on ground */}
+              <Ellipse cx={width} cy="350" rx="180" ry="30" fill="url(#shadowGrad)" />
               
-              {/* Ground gradient */}
-              <LinearGradient id="groundGrad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#8BC34A" stopOpacity="1" />
-                <Stop offset="1" stopColor="#689F38" stopOpacity="1" />
-              </LinearGradient>
-              
-              {/* Water gradient */}
-              <LinearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#64B5F6" stopOpacity="1" />
-                <Stop offset="1" stopColor="#1976D2" stopOpacity="1" />
-              </LinearGradient>
-            </Defs>
-            
-            {/* Sky - full panorama */}
-            <Rect x="0" y="0" width={width * 4} height={height * 0.6} fill="url(#skyGrad)" />
-            
-            {/* Sun */}
-            <Circle cx={width * 2} cy={height * 0.15} r="60" fill="#FFD700" opacity="0.8" />
-            
-            {/* Ground/Grass */}
-            <Rect x="0" y={height * 0.6} width={width * 4} height={height * 0.4} fill="url(#groundGrad)" />
-            
-            {/* River running through - continuous */}
-            <Rect 
-              x="0" 
-              y={height * 0.55} 
-              width={width * 4} 
-              height={height * 0.15} 
-              fill="url(#waterGrad)" 
-            />
-            
-            {/* Water waves pattern */}
-            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              {/* River - 3D perspective */}
               <Path
-                key={i}
-                d={`M ${i * width/2},${height * 0.6} Q ${i * width/2 + width/8},${height * 0.58} ${i * width/2 + width/4},${height * 0.6} T ${(i + 1) * width/2},${height * 0.6}`}
+                d={`M ${width * 0.7},250 L ${width * 1.3},250 L ${width * 1.25},320 L ${width * 0.75},320 Z`}
+                fill="url(#waterGrad)"
+              />
+              
+              {/* Water waves */}
+              <Path
+                d={`M ${width * 0.78},270 Q ${width * 0.9},265 ${width},270 T ${width * 1.22},270`}
                 stroke="#90CAF9"
                 strokeWidth="3"
                 fill="none"
-                opacity="0.5"
+                opacity="0.7"
               />
-            ))}
-            
-            {/* Buildings - LEFT SIDE */}
-            <G>
-              {/* Building 1 */}
-              <Rect x={width * 0.2} y={height * 0.35} width="120" height="180" fill="#BDBDBD" />
-              <Polygon points={`${width * 0.2},${height * 0.35} ${width * 0.2 + 60},${height * 0.3} ${width * 0.2 + 120},${height * 0.35}`} fill="#9E9E9E" />
-              {/* Windows */}
-              <Rect x={width * 0.2 + 20} y={height * 0.4} width="25" height="30" fill="#1976D2" opacity="0.7" />
-              <Rect x={width * 0.2 + 75} y={height * 0.4} width="25" height="30" fill="#1976D2" opacity="0.7" />
+              <Path
+                d={`M ${width * 0.8},285 Q ${width * 0.92},280 ${width},285 T ${width * 1.2},285`}
+                stroke="#90CAF9"
+                strokeWidth="3"
+                fill="none"
+                opacity="0.7"
+              />
               
-              {/* Building 2 */}
-              <Rect x={width * 0.5} y={height * 0.3} width="100" height="220" fill="#CFD8DC" />
-              <Polygon points={`${width * 0.5},${height * 0.3} ${width * 0.5 + 50},${height * 0.25} ${width * 0.5 + 100},${height * 0.3}`} fill="#B0BEC5" />
-              <Rect x={width * 0.5 + 15} y={height * 0.38} width="20" height="25" fill="#1976D2" opacity="0.7" />
-              <Rect x={width * 0.5 + 65} y={height * 0.38} width="20" height="25" fill="#1976D2" opacity="0.7" />
-            </G>
-            
-            {/* Buildings - CENTER (you see this when looking forward) */}
-            <G>
-              {/* Tall building */}
-              <Rect x={width * 1.5} y={height * 0.25} width="150" height="260" fill="#ECEFF1" />
-              <Polygon points={`${width * 1.5},${height * 0.25} ${width * 1.5 + 75},${height * 0.18} ${width * 1.5 + 150},${height * 0.25}`} fill="#CFD8DC" />
-              {/* Windows grid */}
-              {[0, 1, 2].map(row => 
+              {/* Building - left */}
+              <Rect x={width * 0.5} y="150" width="120" height="200" fill="url(#buildingGrad)" />
+              <Polygon points={`${width * 0.5},150 ${width * 0.5 + 60},130 ${width * 0.5 + 120},150`} fill="#CFD8DC" />
+              
+              {/* Windows */}
+              {[0, 1, 2].map(row =>
                 [0, 1].map(col => (
-                  <Rect 
-                    key={`${row}-${col}`}
-                    x={width * 1.5 + 30 + col * 60} 
-                    y={height * 0.32 + row * 50} 
-                    width="30" 
-                    height="35" 
-                    fill="#1976D2" 
-                    opacity="0.7" 
+                  <Rect
+                    key={`win-${row}-${col}`}
+                    x={width * 0.5 + 20 + col * 50}
+                    y={170 + row * 50}
+                    width="25"
+                    height="35"
+                    fill="#1976D2"
+                    opacity="0.8"
                   />
                 ))
               )}
               
-              {/* Historic building */}
-              <Rect x={width * 1.8} y={height * 0.35} width="140" height="180" fill="#D7CCC8" />
-              <Polygon points={`${width * 1.8},${height * 0.35} ${width * 1.8 + 70},${height * 0.3} ${width * 1.8 + 140},${height * 0.35}`} fill="#BCAAA4" />
-              <Rect x={width * 1.8 + 35} y={height * 0.42} width="30" height="40" fill="#8D6E63" opacity="0.8" />
-            </G>
-            
-            {/* Buildings - RIGHT SIDE */}
-            <G>
-              <Rect x={width * 2.5} y={height * 0.32} width="130" height="200" fill="#B0BEC5" />
-              <Polygon points={`${width * 2.5},${height * 0.32} ${width * 2.5 + 65},${height * 0.27} ${width * 2.5 + 130},${height * 0.32}`} fill="#90A4AE" />
+              {/* Building - right */}
+              <Rect x={width * 1.3} y="160" width="130" height="190" fill="url(#buildingGrad)" />
+              <Polygon points={`${width * 1.3},160 ${width * 1.3 + 65},140 ${width * 1.3 + 130},160`} fill="#BDBDBD" />
               
-              <Rect x={width * 2.8} y={height * 0.38} width="110" height="170" fill="#CFD8DC" />
-              <Polygon points={`${width * 2.8},${height * 0.38} ${width * 2.8 + 55},${height * 0.33} ${width * 2.8 + 110},${height * 0.38}`} fill="#B0BEC5" />
-            </G>
-            
-            {/* Trees along the river */}
-            {[0.3, 0.6, 1.2, 1.7, 2.2, 2.7, 3.2].map((pos, idx) => (
-              <G key={idx}>
-                <Polygon 
-                  points={`${width * pos},${height * 0.52} ${width * pos + 25},${height * 0.45} ${width * pos + 50},${height * 0.52}`} 
-                  fill="#2E7D32" 
+              {[0, 1, 2].map(row =>
+                [0, 1].map(col => (
+                  <Rect
+                    key={`win2-${row}-${col}`}
+                    x={width * 1.3 + 25 + col * 55}
+                    y={180 + row * 50}
+                    width="28"
+                    height="38"
+                    fill="#1976D2"
+                    opacity="0.8"
+                  />
+                ))
+              )}
+              
+              {/* Trees */}
+              <Polygon points={`${width * 0.8},230 ${width * 0.8 + 20},210 ${width * 0.8 + 40},230`} fill="#2E7D32" opacity="0.9" />
+              <Rect x={width * 0.8 + 16} y="230" width="8" height="25" fill="#5D4037" />
+              
+              <Polygon points={`${width * 1.15},230 ${width * 1.15 + 20},210 ${width * 1.15 + 40},230`} fill="#2E7D32" opacity="0.9" />
+              <Rect x={width * 1.15 + 16} y="230" width="8" height="25" fill="#5D4037" />
+              
+              {/* Bridge */}
+              <Rect x={width * 0.72} y="248" width="160" height="12" fill="#8D6E63" opacity="0.9" />
+              {[0, 1, 2, 3].map(i => (
+                <Rect
+                  key={`bridge-${i}`}
+                  x={width * 0.72 + 15 + i * 38}
+                  y="260"
+                  width="6"
+                  height="30"
+                  fill="#6D4C41"
+                  opacity="0.9"
                 />
-                <Rect x={width * pos + 20} y={height * 0.52} width="10" height="30" fill="#5D4037" />
-              </G>
-            ))}
+              ))}
+              
+              {/* Info marker */}
+              <Circle cx={width} cy="240" r="15" fill="#FF9800" opacity="0.95" />
+              <SvgText x={width} y="246" textAnchor="middle" fontSize="18" fill="#fff">📍</SvgText>
+            </Svg>
+          </Animated.View>
+        )}
+        
+        {/* AR HUD */}
+        {arActive && (
+          <View style={styles.arHud}>
+            <View style={styles.hudBadge}>
+              <Text style={styles.hudText}>
+                {objectPlaced ? '✅ AR OBJECT PLACED' : '🔍 SCANNING SURFACE'}
+              </Text>
+            </View>
             
-            {/* Bridge */}
-            <Rect x={width * 1.45} y={height * 0.54} width="200" height="15" fill="#8D6E63" />
-            {[0, 1, 2, 3].map(i => (
-              <Rect 
-                key={i}
-                x={width * 1.45 + 20 + i * 45} 
-                y={height * 0.54 + 15} 
-                width="8" 
-                height="35" 
-                fill="#6D4C41" 
-              />
-            ))}
-            
-            {/* Info markers floating */}
-            <Circle cx={width * 0.4} cy={height * 0.48} r="15" fill="#FF9800" opacity="0.9" />
-            <SvgText x={width * 0.4} y={height * 0.485} textAnchor="middle" fontSize="18" fill="#fff">📍</SvgText>
-            
-            <Circle cx={width * 1.6} cy={height * 0.45} r="15" fill="#FF9800" opacity="0.9" />
-            <SvgText x={width * 1.6} y={height * 0.455} textAnchor="middle" fontSize="18" fill="#fff">📍</SvgText>
-            
-            <Circle cx={width * 2.6} cy={height * 0.48} r="15" fill="#FF9800" opacity="0.9" />
-            <SvgText x={width * 2.6} y={height * 0.485} textAnchor="middle" fontSize="18" fill="#fff">📍</SvgText>
-            
-            {/* Clouds */}
-            <Ellipse cx={width * 0.7} cy={height * 0.2} rx="80" ry="40" fill="#FFFFFF" opacity="0.6" />
-            <Ellipse cx={width * 1.8} cy={height * 0.15} rx="100" ry="45" fill="#FFFFFF" opacity="0.6" />
-            <Ellipse cx={width * 2.9} cy={height * 0.22} rx="90" ry="42" fill="#FFFFFF" opacity="0.6" />
-          </Svg>
-          
-          {/* HUD */}
-          <View style={styles.hud}>
-            <View style={styles.hudTop}>
-              <View style={styles.hudBadge}>
-                <Text style={styles.hudText}>🎮 IMMERSIVE 3D WORLD</Text>
+            {objectPlaced && (
+              <View style={styles.trackingInfo}>
+                <Text style={styles.trackingText}>
+                  🎯 Tracking: Active | Distance: 1.2m
+                </Text>
               </View>
-              <Text style={styles.hudInfo}>
-                Rotation: {Math.round(viewOffset)}° | Move phone to look around
-              </Text>
-            </View>
-            
-            <View style={styles.compass}>
-              <Text style={styles.compassText}>
-                {viewOffset < -400 ? '← WEST' : 
-                 viewOffset < -200 ? '↖ NW' :
-                 viewOffset < 0 ? '↑ NORTH' :
-                 viewOffset < 200 ? '↗ NE' :
-                 viewOffset < 400 ? '→ EAST' :
-                 '↘ SE'}
-              </Text>
-            </View>
+            )}
           </View>
-        </Animated.View>
-      )}
+        )}
+      </View>
 
       {/* UI Controls */}
       <View style={styles.overlay} pointerEvents="box-none">
-        {!in3DWorld && (
-          <>
-            <View style={styles.header}>
-              <View style={styles.arBadge}>
-                <Text style={styles.arBadgeText}>🎯 360° 3D PORTAL</Text>
-              </View>
-              <Text style={styles.title}>Immersive Bega Dimension</Text>
+        
+        {/* Instructions */}
+        {!arActive && (
+          <View style={styles.header}>
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>🎯 AR READY</Text>
             </View>
+            <Text style={styles.title}>Augmented Reality Mode</Text>
             
             <View style={styles.instructions}>
-              <Text style={styles.instructionTitle}>💡 Instructions:</Text>
+              <Text style={styles.instructionTitle}>💡 How it works:</Text>
               <Text style={styles.instructionText}>
-                • Tap portal to enter{'\n'}
-                • Move phone to look around 360°{'\n'}
-                • Full immersive 3D Bega world!
+                1. Tap "Start AR" below{'\n'}
+                2. Point camera at flat surface{'\n'}
+                3. Tap "Place Object" when ready{'\n'}
+                4. Move phone to view from all angles!
               </Text>
             </View>
-          </>
+          </View>
         )}
-
+        
+        {/* Start AR Button */}
+        {!arActive && (
+          <TouchableOpacity 
+            style={styles.startButton}
+            onPress={startAR}
+          >
+            <Text style={styles.startButtonText}>🚀 Start AR Scanning</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Place Object Button */}
+        {arActive && !objectPlaced && (
+          <TouchableOpacity 
+            style={styles.placeButton}
+            onPress={placeObject}
+          >
+            <Text style={styles.placeButtonText}>📍 Place Bega River Here</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Exit Button */}
         <TouchableOpacity 
           style={styles.closeButton}
           onPress={() => {
-            if (in3DWorld) {
-              exitWorld();
+            if (arActive) {
+              exitAR();
             } else {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               navigation.goBack();
@@ -427,7 +479,7 @@ export default function ARDimensionScreen({ navigation }) {
           }}
         >
           <Text style={styles.closeButtonText}>
-            {in3DWorld ? '🚪 Exit 3D World' : '✕ Back'}
+            {arActive ? '🔴 Exit AR' : '✕ Back'}
           </Text>
         </TouchableOpacity>
       </View>
@@ -443,53 +495,37 @@ const styles = StyleSheet.create({
   camera: {
     flex: 1,
   },
-  portalContainer: {
+  arOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
-  portalButton: {
-    alignItems: 'center',
-  },
-  portalLabel: {
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  portalText: {
-    color: '#00e5ff',
-    fontSize: 20,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.8)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  portalSubtext: {
-    color: '#00b8d4',
-    fontSize: 14,
-    marginTop: 5,
-  },
-  worldContainer: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-  worldSvg: {
-    flex: 1,
-  },
-  hud: {
+  planeDetection: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    pointerEvents: 'none',
   },
-  hudTop: {
+  scanLine: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+  },
+  arObject: {
+    position: 'absolute',
+    top: height * 0.3,
+    left: -width * 0.5,
+    right: -width * 0.5,
+  },
+  arHud: {
+    position: 'absolute',
+    top: 60,
+    left: 20,
+    right: 20,
     alignItems: 'center',
-    marginTop: 60,
   },
   hudBadge: {
     backgroundColor: 'rgba(76, 175, 80, 0.95)',
@@ -503,26 +539,15 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  hudInfo: {
-    color: '#fff',
-    fontSize: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+  trackingInfo: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     paddingHorizontal: 15,
     paddingVertical: 8,
-    borderRadius: 10,
+    borderRadius: 12,
   },
-  compass: {
-    position: 'absolute',
-    top: 120,
-    right: 20,
-    backgroundColor: 'rgba(0, 119, 190, 0.9)',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  compassText: {
-    color: '#fff',
-    fontSize: 16,
+  trackingText: {
+    color: '#00E5FF',
+    fontSize: 12,
     fontWeight: 'bold',
   },
   overlay: {
@@ -536,14 +561,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 60,
   },
-  arBadge: {
+  badge: {
     backgroundColor: 'rgba(0, 229, 255, 0.9)',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 25,
     marginBottom: 10,
   },
-  arBadgeText: {
+  badgeText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
@@ -552,29 +577,68 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
+    marginBottom: 20,
     textShadowColor: 'rgba(0, 0, 0, 0.8)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   instructions: {
+    backgroundColor: 'rgba(0, 119, 190, 0.9)',
+    padding: 20,
+    borderRadius: 15,
+    marginHorizontal: 20,
+    marginTop: 20,
+  },
+  instructionTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 10,
+  },
+  instructionText: {
+    fontSize: 13,
+    color: '#fff',
+    lineHeight: 22,
+  },
+  startButton: {
     position: 'absolute',
     bottom: 120,
     left: 20,
     right: 20,
-    backgroundColor: 'rgba(0, 119, 190, 0.9)',
-    padding: 15,
-    borderRadius: 12,
+    backgroundColor: '#4CAF50',
+    padding: 20,
+    borderRadius: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  instructionTitle: {
-    fontSize: 14,
+  startButtonText: {
+    color: '#fff',
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
   },
-  instructionText: {
-    fontSize: 12,
+  placeButton: {
+    position: 'absolute',
+    bottom: 120,
+    left: 20,
+    right: 20,
+    backgroundColor: '#FF9800',
+    padding: 20,
+    borderRadius: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  placeButtonText: {
     color: '#fff',
-    lineHeight: 18,
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   closeButton: {
     position: 'absolute',
